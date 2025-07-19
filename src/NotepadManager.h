@@ -1,13 +1,22 @@
-#pragma once
-#include <ArduinoJson.h>
-#include <string>
+#ifndef NOTEPADMANAGER_H
+#define NOTEPADMANAGER_H
 
-class NotepadManager {
+#include <ArduinoJson.h>
+#include <Arduino.h>
+
+class NotepadManager
+{
 public:
-    static NotepadManager& getInstance();
-    bool saveNote(const String& experiment, const String& notes);
-    bool loadNote(const String& experiment, String& notesOut);
+    static NotepadManager &getInstance();
+
+    void listNotes(JsonArray &arr);
+    bool loadNote(const String &experiment, String &outNotes);
+    bool saveNote(const String &experiment, const String &notes);
+
 private:
-    NotepadManager() = default;
-    String getFilename(const String& experiment);
+    NotepadManager();
+    NotepadManager(const NotepadManager &) = delete;
+    NotepadManager &operator=(const NotepadManager &) = delete;
 };
+
+#endif // NOTEPADMANAGER_H

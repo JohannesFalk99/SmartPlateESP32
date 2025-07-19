@@ -1,140 +1,3 @@
-
-// #include "HeatingElement.h"
-
-// HeatingElement::HeatingElement(uint8_t relayPin, float maxTempLimit, int filterSize)
-//     : relayPin(relayPin), maxTemp(maxTempLimit), tempFilterSize(filterSize)
-// {
-//     pinMode(relayPin, OUTPUT);
-//     digitalWrite(relayPin, LOW);
-//     tempBuffer = new float[tempFilterSize]();
-// }
-
-// HeatingElement::~HeatingElement()
-// {
-//     delete[] tempBuffer;
-// }
-
-// void HeatingElement::start()
-// {
-    
-//     if (!isRunning && !fault)
-//     {
-//         Serial.println("HeatingElement: Starting heater");
-//         setRelay(true);
-//         if (onHeaterOn)
-//             onHeaterOn();
-//     }
-// }
-
-// void HeatingElement::stop()
-// {
-//     if (isRunning)
-//     {
-//         setRelay(false);
-//         if (onHeaterOff)
-//             onHeaterOff();
-//     }
-// }
-
-
-// void HeatingElement::addTemperatureReading(float temp)
-// {
-
-//     tempBuffer[tempIndex] = temp;
-//     tempIndex = (tempIndex + 1) % tempFilterSize;
-
-//     // Filtering is disabled
-//     // float sum = 0;
-//     // for (int i = 0; i < tempFilterSize; i++) {
-//     //     sum += tempBuffer[i];
-//     // }
-//     // filteredTemp = sum / tempFilterSize;
-
-//     currentTemp = temp;
-//     printf("HeatingElement: Current Temp = %.2f\n", currentTemp);
-//     // Fault detection based on raw temperature
-//     if (currentTemp >= maxTemp)
-//     {
-//         Serial.println("HeatingElement: Fault detected - over temperature!");
-//         fault = true;
-//         stop();
-//         if (onFault)
-//             onFault();
-//     }
-//     else
-//     {
-//         fault = false;
-//     }
-
-//     // Bang-bang control based on currentTemp (filtering disabled)
-//     if (targetTempSet && !fault)
-//     {
-//         Serial.printf("HeatingElement: Current Temp = %.2f, Target Temp = %.2f, Tolerance = %.2f\n",
-//                       currentTemp, targetTemp, targetTolerance);
-//         if (currentTemp < targetTemp - targetTolerance)
-//         {
-//             setRelay(true);
-//         }
-//         else if (currentTemp >= targetTemp + targetTolerance)
-//         {
-//             //Serial.println("HeatingElement: Target temperature reached, turning off heater");
-//             setRelay(false);
-//         }
-//     }
-
-//     // Callback if target temp reached (within lower bound)
-//     if (isRunning && !fault && targetTempSet &&
-//         currentTemp >= targetTemp - targetTolerance &&
-//         !targetReachedTriggered)
-//     {
-//         targetReachedTriggered = true;
-//         if (onTargetReached)
-//             onTargetReached();
-//     }
-//     else if (currentTemp < targetTemp - targetTolerance)
-//     {
-//         targetReachedTriggered = false;
-//     }
-// }
-
-// void HeatingElement::setTargetTemperature(float target, float tolerance)
-// {
-//     targetTemp = target;
-//     targetTolerance = tolerance;
-//     targetTempSet = true;
-//     targetReachedTriggered = false;
-// }
-
-// float HeatingElement::getCurrentTemperature() const { return currentTemp; }
-// // float HeatingElement::getFilteredTemperature() const { return filteredTemp; } // Disabled
-// bool HeatingElement::isRunningState() const { return isRunning; }
-// bool HeatingElement::hasFault() const { return fault; }
-// float HeatingElement::getTargetTemperature() const { return targetTemp; }
-
-// void HeatingElement::setOnFaultCallback(Callback cb) { onFault = cb; }
-// void HeatingElement::setOnHeaterOnCallback(Callback cb) { onHeaterOn = cb; }
-// void HeatingElement::setOnHeaterOffCallback(Callback cb) { onHeaterOff = cb; }
-// void HeatingElement::setOnTargetReachedCallback(Callback cb) { onTargetReached = cb; }
-
-// void HeatingElement::setRelay(bool on)
-// {
-//     digitalWrite(relayPin, on ? HIGH : LOW);
-//     Serial.printf("HeatingElement: Relay %s\n", on ? "ON" : "OFF");
-
-//     if (on && !isRunning)
-//     {
-//         isRunning = true;
-//         if (onHeaterOn)
-//             onHeaterOn();
-//     }
-//     else if (!on && isRunning)
-//     {
-//         isRunning = false;
-//         if (onHeaterOff)
-//             onHeaterOff();
-//     }
-// }
-
 #include "HeatingElement.h"
 #include <Adafruit_MAX31865.h>
 
@@ -149,6 +12,9 @@ HeatingElement::HeatingElement(uint8_t relayPin, float maxTempLimit, int filterS
     pinMode(relayPin, OUTPUT);
     digitalWrite(relayPin, LOW);
     tempBuffer = new float[tempFilterSize]();
+    currentTemp = NAN;
+    // Initialize callback pointer to nullptr
+    onTemperatureChanged = nullptr;
 }
 
 // Destructor: free temp buffer
@@ -169,7 +35,7 @@ void HeatingElement::update()
 {
     float temp = thermo.temperature(RNOMINAL, RREF);
     addTemperatureReading(temp);
-    printf("HeatingElement: Current Temp = %.2f°C\n", temp);
+    Serial.printf("HeatingElement: Current Temp = %.2f°C\n", temp);
     // Check sensor faults and clear if any
     uint8_t faultCode = thermo.readFault();
     if (faultCode)
@@ -210,8 +76,15 @@ void HeatingElement::addTemperatureReading(float temp)
     tempIndex = (tempIndex + 1) % tempFilterSize;
 
     // Filtering disabled - use raw reading
+    float previousTemp = currentTemp;
     currentTemp = temp;
     Serial.printf("HeatingElement: Current Temp = %.2f\n", currentTemp);
+
+    // Trigger temperature changed callback if value changed significantly
+    if (onTemperatureChanged && (isnan(previousTemp) || fabs(currentTemp - previousTemp) > 0.01f))
+    {
+        onTemperatureChanged(currentTemp);
+    }
 
     // Fault detection - over temperature
     if (currentTemp >= maxTemp)
@@ -277,6 +150,8 @@ void HeatingElement::setOnFaultCallback(Callback cb) { onFault = cb; }
 void HeatingElement::setOnHeaterOnCallback(Callback cb) { onHeaterOn = cb; }
 void HeatingElement::setOnHeaterOffCallback(Callback cb) { onHeaterOff = cb; }
 void HeatingElement::setOnTargetReachedCallback(Callback cb) { onTargetReached = cb; }
+// New setter for temperature changed callback
+void HeatingElement::setOnTemperatureChangedCallback(void (*cb)(float)) { onTemperatureChanged = cb; }
 
 // Relay control with status update and callback triggers
 void HeatingElement::setRelay(bool on)

@@ -17,6 +17,7 @@
   <script src="js/dashboard.js"></script>
   <script src="js/alerts.js"></script>
   <script src="js/settings.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
   <style>
     /* Base style - side by side for desktop */
@@ -133,30 +134,7 @@
 
   <div class="wrapper">
 
-    <!-- Navbar -->
-    <nav class="main-header navbar navbar-expand navbar-dark">
-      <ul class="navbar-nav">
-        <li class="nav-item">
-          <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
-        </li>
-      </ul>
-        <li class="nav-item">
-          <a href="#notepadTab" class="nav-link" data-toggle="tab">Notepad</a>
-        </li>
 
-      <!-- Tabs nav -->
-      <ul class="navbar-nav ml-auto">
-        <li class="nav-item">
-          <a href="#dashboardTab" class="nav-link active" data-toggle="tab">Dashboard</a>
-        </li>
-        <li class="nav-item">
-          <a href="#alertsTab" class="nav-link" data-toggle="tab">Alerts</a>
-        </li>
-        <li class="nav-item">
-          <a href="#settingsTab" class="nav-link" data-toggle="tab">Settings</a>
-        </li>
-      </ul>
-    </nav>
 
     <!-- Sidebar -->
     <aside class="main-sidebar sidebar-dark-primary elevation-4">
@@ -177,6 +155,12 @@
               <a href="#alertsTab" class="nav-link" data-toggle="tab">
                 <i class="nav-icon fas fa-exclamation-triangle"></i>
                 <p>Alerts</p>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a href="#notepadTab" class="nav-link" data-toggle="tab">
+                <i class="nav-icon fas fa-sticky-note"></i>
+                <p>Notepad</p>
               </a>
             </li>
             <li class="nav-item">
@@ -343,8 +327,8 @@
                     </div>
                     <div class="form-group">
                       <label for="rpmAlert">RPM Alert Threshold</label>
-                      <input type="number" class="form-control" id="rpmAlert" name="rpmAlert" placeholder="Enter RPM threshold"
-                        required>
+                      <input type="number" class="form-control" id="rpmAlert" name="rpmAlert"
+                        placeholder="Enter RPM threshold" required>
                     </div>
                     <div class="form-group">
                       <label for="timerAlert">Timer Alert Threshold (minutes)</label>
@@ -353,7 +337,7 @@
                     </div>
                     <button type="submit" class="btn btn-warning">Save Alert Settings</button>
                   </form>
-        
+
                   <!-- Optional alert feedback display -->
                   <div id="alertBox" class="alert alert-danger mt-3 d-none" role="alert"></div>
                 </div>
@@ -364,6 +348,7 @@
 
 
         <!-- Notepad Tab -->
+        <!-- ...existing code... -->
         <section class="content tab-pane" id="notepadTab">
           <div class="content-header">
             <div class="container-fluid">
@@ -376,15 +361,28 @@
                 <div class="card-body">
                   <form id="notepadForm" autocomplete="off" onsubmit="return false;">
                     <div class="form-group">
-                      <label for="notepadExperiment">Experiment Name (optional)</label>
-                      <input type="text" class="form-control" id="notepadExperiment" placeholder="Experiment name or ID">
+                      <label for="notepadName">Note Name</label>
+                      <div class="input-group">
+                        <input type="text" class="form-control" id="notepadName" placeholder="Enter note name">
+                        <div class="input-group-append">
+
+                        </div>
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="notepadList">Saved Notes</label>
+                      <select class="form-control" id="notepadList"></select>
+                      <button type="button" class="btn btn-outline-secondary" id="notepadRefreshList"
+                        title="Refresh list">
+                        <i class="fas fa-sync"></i>
+                      </button>
                     </div>
                     <div class="form-group">
                       <label for="notepadArea">Notes</label>
-                      <textarea class="form-control" id="notepadArea" rows="10" placeholder="Type your notes here..."></textarea>
+                      <textarea class="form-control" id="notepadArea" rows="10" style="height: auto;"
+                        placeholder="Type your notes here..."></textarea>
                     </div>
                     <button type="button" class="btn btn-primary" id="notepadSave">Save</button>
-                    <button type="button" class="btn btn-secondary" id="notepadLoad">Load</button>
                     <button type="button" class="btn btn-danger" id="notepadClear">Clear</button>
                   </form>
                   <div id="notepadStatus" class="mt-2"></div>
@@ -393,6 +391,7 @@
             </div>
           </section>
         </section>
+        <!-- ...existing code... -->
 
         <!-- Settings Tab -->
         <section class="content tab-pane" id="settingsTab">
@@ -408,8 +407,8 @@
                   <form id="settingsForm">
                     <div class="form-group">
                       <label for="alertTempThreshold">Temperature Alert Threshold (°C)</label>
-                      <input type="number" step="0.1" class="form-control" id="alertTempThreshold" name="alertTempThreshold"
-                        placeholder="Set temperature alert threshold" />
+                      <input type="number" step="0.1" class="form-control" id="alertTempThreshold"
+                        name="alertTempThreshold" placeholder="Set temperature alert threshold" />
                     </div>
                     <div class="form-group">
                       <label for="alertRpmThreshold">RPM Alert Threshold</label>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ESP32 File Explorer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #path {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        button {
+            margin-right: 5px;
+        }
+
+        #uploadForm {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>ESP32 File System Explorer</h2>
+    <div id="path"></div>
+    <table id="fileTable">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Size</th>
+                <th>Type</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <form id="uploadForm">
+        <input type="file" id="fileInput" multiple />
+        <button type="submit">Upload</button>
+    </form>
+
+    <script>
+        let currentDir = "/";
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + " B";
+            else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+            else return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+        }
+
+        function loadDir(dir) {
+            currentDir = dir;
+            document.getElementById("path").textContent = "Path: " + dir;
+
+            fetch(`/fs/list?dir=${encodeURIComponent(dir)}`)
+                .then(res => res.json())
+                .then(data => {
+                    const tbody = document.querySelector("#fileTable tbody");
+                    tbody.innerHTML = "";
+
+                    // Add "Parent Directory" row if not root
+                    if (dir !== "/") {
+                        const parentDir = dir.substring(0, dir.lastIndexOf("/")) || "/";
+                        const row = document.createElement("tr");
+                        row.innerHTML = `<td colspan="4" style="font-style: italic; cursor:pointer; color:blue;">[..]</td>`;
+                        row.onclick = () => loadDir(parentDir);
+                        tbody.appendChild(row);
+                    }
+
+                    data.forEach(item => {
+                        const row = document.createElement("tr");
+
+                        // Name cell - clickable if directory
+                        const nameCell = document.createElement("td");
+                        nameCell.textContent = item.name;
+                        if (item.isDir) {
+                            nameCell.style.fontWeight = "bold";
+                            nameCell.style.color = "blue";
+                            nameCell.style.cursor = "pointer";
+                            nameCell.onclick = () => loadDir(item.path);
+                        }
+                        row.appendChild(nameCell);
+
+                        // Size cell
+                        const sizeCell = document.createElement("td");
+                        sizeCell.textContent = item.isDir ? "-" : formatSize(item.size);
+                        row.appendChild(sizeCell);
+
+                        // Type cell
+                        const typeCell = document.createElement("td");
+                        typeCell.textContent = item.isDir ? "Folder" : "File";
+                        row.appendChild(typeCell);
+
+                        // Actions cell
+                        const actionsCell = document.createElement("td");
+
+                        if (!item.isDir) {
+                            const downloadBtn = document.createElement("button");
+                            downloadBtn.textContent = "Download";
+                            downloadBtn.onclick = () => {
+                                window.open(`/fs/download?path=${encodeURIComponent(currentDir + "/" + item.path)}`, "_blank");
+                            };
+                            actionsCell.appendChild(downloadBtn);
+                        }
+
+                        const deleteBtn = document.createElement("button");
+                        deleteBtn.textContent = "Delete";
+                        deleteBtn.onclick = () => {
+                            if (confirm(`Delete "${item.name}"?`)) {
+                                fetch(`/fs/delete?path=${encodeURIComponent(currentDir + "/" + item.path)}`, { method: "DELETE" })
+                                    .then(res => {
+                                        if (res.ok) {
+                                            alert("Deleted successfully");
+                                            loadDir(currentDir);
+                                        } else {
+                                            res.text().then(txt => alert("Error: " + txt));
+                                        }
+                                    });
+                            }
+                        };
+                        actionsCell.appendChild(deleteBtn);
+
+                        row.appendChild(actionsCell);
+
+                        tbody.appendChild(row);
+                    });
+                })
+                .catch(err => {
+                    alert("Failed to load directory: " + err);
+                });
+        }
+
+        // Handle file uploads
+        document.getElementById("uploadForm").addEventListener("submit", e => {
+            e.preventDefault();
+
+            const files = document.getElementById("fileInput").files;
+            if (!files.length) {
+                alert("Select file(s) to upload");
+                return;
+            }
+
+            // Upload files sequentially to avoid overload
+            let index = 0;
+            function uploadNext() {
+                if (index >= files.length) {
+                    alert("All files uploaded");
+                    document.getElementById("fileInput").value = "";
+                    loadDir(currentDir);
+                    return;
+                }
+                const file = files[index];
+                const formData = new FormData();
+                formData.append("file", file);
+
+                fetch("/fs/upload", { method: "POST", body: formData })
+                    .then(res => {
+                        if (res.ok) {
+                            index++;
+                            uploadNext();
+                        } else {
+                            res.text().then(txt => alert("Upload error: " + txt));
+                        }
+                    })
+                    .catch(err => alert("Upload failed: " + err));
+            }
+            uploadNext();
+        });
+
+        // Initial load
+        loadDir("/");
+    </script>
+
+</body>
+
+</html>

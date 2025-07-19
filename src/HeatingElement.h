@@ -102,8 +102,13 @@ public:
     void setOnHeaterOffCallback(Callback cb);
     void setOnTargetReachedCallback(Callback cb);
 
+    void setOnTemperatureChangedCallback(void (*cb)(float));
+
 private:
     void setRelay(bool on);
+
+
+    void (*onTemperatureChanged)(float) = nullptr;
 
     // Relay pin and heater state
     uint8_t relayPin;
