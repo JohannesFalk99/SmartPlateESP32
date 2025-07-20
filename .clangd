@@ -1,0 +1,36 @@
+If:
+  PathMatch: ".*"
+CompileFlags:
+  CompilationDatabase: "compile_commands.json"
+ 
+  Remove:
+    - -mdisable-hardware-atomics
+    - -fno-tree-switch-conversion
+    - -fno-tree-loop-distribute-patterns
+  Add: [
+    "-I",
+    "C:/Users/Johan/Documents/PlatformIO/Projects/SmartPlateESP32/include",
+    "-I",
+    "C:/Users/Johan/Documents/PlatformIO/Projects/SmartPlateESP32/src",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/framework-arduinoespressif32/cores/esp32",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/framework-arduinoespressif32/libraries",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/framework-arduinoespressif32/variants",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/toolchain-xtensa-esp32/xtensa-esp32-elf/include",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/toolchain-xtensa-esp32/lib/gcc/xtensa-esp32-elf/8.4.0/include",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/toolchain-xtensa-esp32/lib/gcc/xtensa-esp32-elf/8.4.0/include/c++",
+    "-I",
+    "C:/Users/Johan/.platformio/packages/toolchain-xtensa-esp32/lib/gcc/xtensa-esp32-elf/8.4.0/include/c++/xtensa-esp32-elf",
+    "-nostdinc++",
+    "-x",
+    "c++",
+    "--target=xtensa"
+  ]
+
+Diagnostics:
+  Suppress: ["ovl_no_viable_member_function_in_call"]
