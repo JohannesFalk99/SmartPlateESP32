@@ -8,8 +8,11 @@
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
+#include <unordered_map>
+#include <functional>
 #include "HeaterModeManager.h"
 #include "NotepadManager.h"
+#include "config/Config.h"
 
 // Constants
 #define HISTORY_SIZE 300
@@ -30,13 +33,13 @@ struct SystemState
 
     float tempSetpoint = 0.0;
     int rpmSetpoint = 0;
-    String mode = "Hold";
+    String mode = Modes::HOLD;
 
     int duration = 0;
 
-    float alertTempThreshold = 0.0;
-    float alertRpmThreshold = 0.0;
-    int alertTimerThreshold = 0;
+    float alertTempThreshold = ALERT_TEMP_THRESHOLD;
+    float alertRpmThreshold = ALERT_RPM_THRESHOLD;
+    int alertTimerThreshold = ALERT_TIMER_THRESHOLD;
 
     unsigned long startTime = 0;
 };
@@ -73,6 +76,15 @@ private:
 
     HeaterModeManager *modeManager = nullptr;
 
+    // Helper methods
+    void sendAck(AsyncWebSocketClient *client, const String &message);
+    void sendError(AsyncWebSocketClient *client, const String &error);
+    
+    // Initialization methods
+    bool beginWiFi(const char *ssid, const char *password);
+    bool beginFileSystem();
+    void beginServer();
+
     // WebSocket event handlers
     static void onWsEventStatic(AsyncWebSocket *server, AsyncWebSocketClient *client,
                                 AwsEventType type, void *arg, uint8_t *data, size_t len);
@@ -102,11 +114,42 @@ private:
     void handleNotepadLoad(AsyncWebSocketClient *client, JsonVariant data);
     void handleNotepadSave(AsyncWebSocketClient *client, JsonVariant data);
 
+    // Mode handler function type
+    using ModeHandler = std::function<void(const JsonObject&)>;
+    
+    // Mode handler methods
+    void handleModeOff(const JsonObject& params);
+    void handleModeHold(const JsonObject& params);
+    void handleModeRamp(const JsonObject& params);
+    void handleModeTimer(const JsonObject& params);
+    
+    // Initialize mode handlers
+    void initializeModeHandlers();
+    
     // Helper functions to update state and log events
     void updateStateProperty(float &var, float val, const char *name);
     void updateStateProperty(int &var, int val, const char *name);
     void updateMode(const String &newMode);
     void logEvent(const String &desc);
+    
+    // Mode handler map with const char* as key (using C-string comparison)
+    struct CStringHash {
+        std::size_t operator()(const char* str) const {
+            std::size_t hash = 0;
+            while (*str) {
+                hash = hash * 101 + *str++;
+            }
+            return hash;
+        }
+    };
+
+    struct CStringEqual {
+        bool operator()(const char* a, const char* b) const {
+            return strcmp(a, b) == 0;
+        }
+    };
+
+    std::unordered_map<const char*, ModeHandler, CStringHash, CStringEqual> modeHandlers;
 };
 
 // Global shared state

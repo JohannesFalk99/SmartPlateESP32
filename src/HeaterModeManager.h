@@ -24,6 +24,13 @@ public:
     void setOnCompleteCallback(void (*cb)());
     void setOnFaultCallback(void (*cb)());
     Mode getCurrentMode() const;
+    
+    /**
+     * @brief Convert Mode enum to human-readable string representation
+     * @param mode The Mode enum value to convert
+     * @return String representation of the mode ("Off", "Ramp", "Hold", "Timer", or "Unknown")
+     */
+    static String modeToString(Mode mode);
 
 private:
     HeatingElement &heater;

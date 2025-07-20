@@ -106,3 +106,20 @@ void HeaterModeManager::update(float currentTemp)
 void HeaterModeManager::setOnCompleteCallback(void (*cb)()) { onComplete = cb; }
 void HeaterModeManager::setOnFaultCallback(void (*cb)()) { onFault = cb; }
 HeaterModeManager::Mode HeaterModeManager::getCurrentMode() const { return mode; }
+
+String HeaterModeManager::modeToString(Mode mode)
+{
+    switch (mode)
+    {
+    case OFF:
+        return "Off";
+    case RAMP:
+        return "Ramp";
+    case HOLD:
+        return "Hold";
+    case TIMER:
+        return "Timer";
+    default:
+        return "Unknown";
+    }
+}
