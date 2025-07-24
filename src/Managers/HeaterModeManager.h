@@ -32,6 +32,30 @@ public:
      */
     static String modeToString(Mode mode);
 
+    /**
+     * @brief Set the mode by string or enum
+     * @param modeStr The mode as a string ("Off", "Ramp", "Hold", "Timer")
+     */
+    void setMode(const String& modeStr);
+    void setMode(Mode modeVal);
+
+    /**
+     * @brief Set the target temperature for the current or next mode
+     */
+    void setTargetTemperature(float temp);
+    /**
+     * @brief Set ramp parameters for ramp mode
+     */
+    void setRampParams(float startTemp, float endTemp, unsigned long durationSeconds);
+    /**
+     * @brief Set timer parameters for timer mode
+     */
+    void setTimerParams(unsigned long durationSeconds, float targetTemp, bool useTemp);
+    /**
+     * @brief Set hold temperature for hold mode
+     */
+    void setHoldTemp(float holdTemp);
+
 private:
     HeatingElement &heater;
     Mode mode = OFF;

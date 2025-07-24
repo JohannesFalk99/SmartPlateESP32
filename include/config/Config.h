@@ -1,6 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <cstdint> // For fixed-width integer types
+
 // WiFi credentials
 constexpr char WIFI_SSID[] = "NETGEAR67";
 constexpr char WIFI_PASSWORD[] = "IHaveATinyPenis";
@@ -29,5 +31,17 @@ namespace Modes {
 
 // Other constants
 constexpr float DEFAULT_RAMP_RATE = 1.0f;
+
+// Hardware Configuration
+constexpr int RELAY_PIN = 5;
+constexpr float MAX_TEMP_LIMIT = 70.0f;
+constexpr int TEMP_FILTER_SIZE = 5;
+
+// System Configuration
+constexpr unsigned long UPDATE_INTERVAL_MS = 500;
+constexpr int RPM_MIN = 100;
+constexpr int RPM_MAX = 200;
+constexpr int RPM_INCREMENT = 10;
+constexpr uint16_t SERIAL_TCP_PORT = 23;
 
 #endif // CONFIG_H

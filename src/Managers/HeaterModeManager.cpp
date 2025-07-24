@@ -123,3 +123,61 @@ String HeaterModeManager::modeToString(Mode mode)
         return "Unknown";
     }
 }
+
+void HeaterModeManager::setMode(const String& modeStr) {
+    if (modeStr.equalsIgnoreCase("Off")) {
+        setOff();
+    } else if (modeStr.equalsIgnoreCase("Ramp")) {
+        // Default ramp values, or you may want to require parameters
+        setRamp(rampStartTemp, rampEndTemp, rampDuration / 1000UL);
+    } else if (modeStr.equalsIgnoreCase("Hold")) {
+        setHold(rampEndTemp); // Or use a default hold temp
+    } else if (modeStr.equalsIgnoreCase("Timer")) {
+        setTimer(timerDuration / 1000UL, rampEndTemp, timerUseTemp);
+    }
+}
+
+void HeaterModeManager::setMode(Mode modeVal) {
+    switch (modeVal) {
+        case OFF:
+            setOff();
+            break;
+        case RAMP:
+            setRamp(rampStartTemp, rampEndTemp, rampDuration / 1000UL);
+            break;
+        case HOLD:
+            setHold(rampEndTemp);
+            break;
+        case TIMER:
+            setTimer(timerDuration / 1000UL, rampEndTemp, timerUseTemp);
+            break;
+    }
+}
+
+void HeaterModeManager::setTargetTemperature(float temp) {
+    rampEndTemp = temp;
+    if (mode == HOLD || mode == RAMP || (mode == TIMER && timerUseTemp)) {
+        heater.setTargetTemperature(temp, 0.5f);
+    }
+}
+
+void HeaterModeManager::setRampParams(float startTemp, float endTemp, unsigned long durationSeconds) {
+    rampStartTemp = startTemp;
+    rampEndTemp = endTemp;
+    rampDuration = durationSeconds * 1000UL;
+}
+
+void HeaterModeManager::setTimerParams(unsigned long durationSeconds, float targetTemp, bool useTemp) {
+    timerDuration = durationSeconds * 1000UL;
+    timerUseTemp = useTemp;
+    if (useTemp) {
+        rampEndTemp = targetTemp;
+    }
+}
+
+void HeaterModeManager::setHoldTemp(float holdTemp) {
+    rampEndTemp = holdTemp;
+    if (mode == HOLD) {
+        heater.setTargetTemperature(holdTemp, 0.5f);
+    }
+}

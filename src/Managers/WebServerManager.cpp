@@ -1,3 +1,6 @@
+// WebServerManager.cpp
+// This file manages the web server and WebSocket communication for the ESP32.
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoJson.h>
@@ -6,7 +9,9 @@
 #include "NotepadManager.h"
 #include "Explorer.h"
 #include "config/Config.h"
+#include "WebServerActions.h"
 
+#include "StateManager.h"
 // Define the static server members
 AsyncWebServer WebServerManager::server(SERVER_PORT);
 AsyncWebSocket WebServerManager::ws(WEBSOCKET_PATH);
@@ -15,10 +20,9 @@ AsyncWebSocket WebServerManager::ws(WEBSOCKET_PATH);
 SystemState state;
 
 // History buffer as circular buffer
-HistoryEntry history[HISTORY_SIZE] = {};
+std::array<HistoryEntry, HISTORY_SIZE> history = {}; // Only define here, declare as extern in header
+std::array<EventEntry, MAX_EVENTS> events = {};
 int historyIndex = 0;
-
-EventEntry events[MAX_EVENTS] = {};
 int eventsCount = 0;
 
 // Forward declarations of action handlers (must match signature)
@@ -29,11 +33,47 @@ AsyncWebServer &WebServerManager::getServer()
 
 // Action map array and size
 const WebServerManager::ActionMapping WebServerManager::actionMap[] = {
-    {"controlUpdate", &WebServerManager::handleControlUpdate},
-    {"getHistory", &WebServerManager::handleGetHistory},
-    {"notepadList", &WebServerManager::handleNotepadList},
-    {"notepadLoad", &WebServerManager::handleNotepadLoad},
-    {"notepadSave", &WebServerManager::handleNotepadSave},
+    {"controlUpdate", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data)
+     { WebServerActions::handleControlUpdate(mgr, client, data); }},
+    {"getHistory", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data)
+     { WebServerActions::handleGetHistory(mgr, client, data); }},
+    {"notepadList", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data)
+     { WebServerActions::handleNotepadList(mgr, client, data); }},
+    {"notepadLoad", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data)
+     { WebServerActions::handleNotepadLoad(mgr, client, data); }},
+    {"notepadSave", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data)
+     { WebServerActions::handleNotepadSave(mgr, client, data); }},
+    {"getConfig", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data) {
+        StaticJsonDocument<512> configDoc;
+        configDoc["tempSetpoint"] = state.tempSetpoint;
+        configDoc["rpmSetpoint"] = state.rpmSetpoint;
+        configDoc["alertTempThreshold"] = state.alertTempThreshold;
+        configDoc["alertRpmThreshold"] = state.alertRpmThreshold;
+        configDoc["alertTimerThreshold"] = state.alertTimerThreshold;
+        String configJson;
+        serializeJson(configDoc, configJson);
+        client->text(configJson);
+    }},
+    {"resetSystem", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data) {
+        Serial.println(F("[WebServerManager] Resetting system..."));
+        ESP.restart();
+    }},
+    {"updateState", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant json) {
+        if (json.is<JsonObject>()) {
+            JsonObject data = json.as<JsonObject>();
+            if (data.containsKey("temperature") && data.containsKey("rpm") && data.containsKey("mode")) {
+                float temperature = data["temperature"];
+                int rpm = data["rpm"];
+                String mode = data["mode"].as<String>();
+                StateManager::updateState(temperature, rpm, mode, state.tempSetpoint, state.rpmSetpoint, state.duration, mgr->modeManager);
+                mgr->notifyClients();
+            } else {
+                mgr->sendError(client, "Incomplete state data");
+            }
+        } else {
+            mgr->sendError(client, "Missing 'data' field for state update");
+        }
+    }}
 };
 const int WebServerManager::actionMapSize = sizeof(WebServerManager::actionMap) / sizeof(WebServerManager::actionMap[0]);
 
@@ -51,7 +91,8 @@ WebServerManager *WebServerManager::instance()
 }
 
 // --- Helper methods for WebSocket communication ---
-void WebServerManager::sendAck(AsyncWebSocketClient *client, const String &message) {
+void WebServerManager::sendAck(AsyncWebSocketClient *client, const String &message)
+{
     StaticJsonDocument<128> doc;
     doc["type"] = "ack";
     doc["message"] = message;
@@ -60,7 +101,8 @@ void WebServerManager::sendAck(AsyncWebSocketClient *client, const String &messa
     client->text(json);
 }
 
-void WebServerManager::sendError(AsyncWebSocketClient *client, const String &error) {
+void WebServerManager::sendError(AsyncWebSocketClient *client, const String &error)
+{
     StaticJsonDocument<128> doc;
     doc["type"] = "error";
     doc["message"] = error;
@@ -69,18 +111,29 @@ void WebServerManager::sendError(AsyncWebSocketClient *client, const String &err
     client->text(json);
 }
 
+void WebServerManager::sendJsonResponse(AsyncWebSocketClient *client, const JsonObject& response) {
+    String jsonString;
+    serializeJson(response, jsonString);
+    if (client && client->status() == WS_CONNECTED) {
+        client->text(jsonString);
+    }
+}
+
 // --- Initialization methods ---
-bool WebServerManager::beginWiFi(const char *ssid, const char *password) {
+bool WebServerManager::beginWiFi(const char *ssid, const char *password)
+{
     Serial.println(F("[WebServerManager] Connecting to WiFi..."));
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 
     unsigned long startAttempt = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000) {
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttempt < 10000)
+    {
         delay(500);
         Serial.print(".");
     }
-    if (WiFi.status() != WL_CONNECTED) {
+    if (WiFi.status() != WL_CONNECTED)
+    {
         Serial.println(F("\n[WebServerManager] WiFi connection timeout."));
         return false;
     }
@@ -90,8 +143,10 @@ bool WebServerManager::beginWiFi(const char *ssid, const char *password) {
     return true;
 }
 
-bool WebServerManager::beginFileSystem() {
-    if (!LittleFS.begin(true)) {
+bool WebServerManager::beginFileSystem()
+{
+    if (!LittleFS.begin(true))
+    {
         Serial.println(F("[WebServerManager] Failed to mount LittleFS!"));
         return false;
     }
@@ -99,28 +154,31 @@ bool WebServerManager::beginFileSystem() {
     return true;
 }
 
-void WebServerManager::beginServer() {
+void WebServerManager::beginServer()
+{
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
     ws.onEvent(onWsEventStatic);
     server.addHandler(&ws);
 
-    server.onNotFound([](AsyncWebServerRequest *request) {
-        request->send(404, "text/plain", "Not Found");
-    });
+    server.onNotFound([](AsyncWebServerRequest *request)
+                      { request->send(404, "text/plain", "Not Found"); });
 
     server.begin();
     Serial.println(F("[WebServerManager] Server started on port 80."));
 }
 
 // Main initialization method
-void WebServerManager::begin(const char *ssid, const char *password) {
-    if (!beginWiFi(ssid, password)) {
+void WebServerManager::begin(const char *ssid, const char *password)
+{
+    if (!beginWiFi(ssid, password))
+    {
         Serial.println(F("[WebServerManager] WiFi connection failed."));
         return;
     }
 
-    if (!beginFileSystem()) {
+    if (!beginFileSystem())
+    {
         Serial.println(F("[WebServerManager] File system mount failed."));
         return;
     }
@@ -147,7 +205,7 @@ void WebServerManager::notifyClients()
     if (ws.count() == 0)
         return;
 
-    StaticJsonDocument<512> doc;
+    DynamicJsonDocument doc(512);
     doc["type"] = "dataUpdate";
     JsonObject data = doc.createNestedObject("data");
 
@@ -164,6 +222,9 @@ void WebServerManager::notifyClients()
     String json;
     serializeJson(doc, json);
     ws.textAll(json);
+
+    // Log the state after notifying clients
+    StateManager::logState();
 }
 
 // WebSocket event handlers (static calls instance method)
@@ -188,7 +249,7 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
         break;
 
     case WS_EVT_DATA:
-        handleWebSocketMessage(client, data, len);
+        handleWebSocketMessage(client, data, len); // Restored call to handleWebSocketMessage
         break;
 
     default:
@@ -197,8 +258,10 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
 }
 
 // Improved WebSocket message handler with better error handling
-void WebServerManager::handleWebSocketMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len) {
-    if (!modeManager) {
+void WebServerManager::handleWebSocketMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len)
+{
+    if (!modeManager)
+    {
         Serial.println(F("[WebServerManager] modeManager is null!"));
         sendError(client, "Mode manager not attached");
         return;
@@ -206,79 +269,103 @@ void WebServerManager::handleWebSocketMessage(AsyncWebSocketClient *client, uint
 
     StaticJsonDocument<1024> doc;
     DeserializationError err = deserializeJson(doc, data, len);
-    if (err) {
+    if (err)
+    {
         Serial.printf("[WebServerManager] Failed to parse JSON: %s\n", err.c_str());
         sendError(client, "Invalid JSON format");
         return;
     }
 
     JsonVariant json = doc.as<JsonVariant>();
-    if (!json.containsKey("action")) {
-        Serial.println(F("[WebServerManager] Missing 'action' field"));
+    if (json.containsKey("action")) {
+        String action = json["action"].as<String>();
+        Serial.printf("[WebServerManager] Received action: %s\n", action.c_str());
+
+        // Use actionMap for dispatch
+        for (int i = 0; i < actionMapSize; ++i) {
+            if (action.equalsIgnoreCase(actionMap[i].action)) {
+                JsonVariant dataVariant;
+                if (json.containsKey("data")) {
+                    dataVariant = JsonVariant(json["data"]);
+                    Serial.print("[WebServerManager] Data for action: ");
+                    serializeJsonPretty(dataVariant, Serial);
+                } else {
+                    dataVariant = JsonVariant(json);
+                    Serial.println("[WebServerManager] No data provided for action");
+
+                }
+                
+                Serial.print("[WebServerManager] Dispatching action with data: ");
+                serializeJsonPretty(json, Serial);
+                Serial.println();
+                actionMap[i].handler(this, client, dataVariant);
+                return;
+            }
+        }
+        // Unknown action
+        Serial.printf("[WebServerManager] Unknown action: %s\n", action.c_str());
+        String errorMsg = "{\"type\":\"error\",\"message\":\"Unknown action: " + action + "\"}";
+        client->text(errorMsg);
+        return;
+    } else {
         sendError(client, "Missing 'action' field");
         return;
     }
-
-    String action = json["action"].as<String>();
-    Serial.printf("[WebServerManager] Received action: %s\n", action.c_str());
-
-    // Find and call the appropriate handler
-    for (int i = 0; i < actionMapSize; i++) {
-        if (action.equalsIgnoreCase(actionMap[i].actionName)) {
-            ActionHandler handler = actionMap[i].handler;
-            if (json.containsKey("data"))
-                (this->*handler)(client, json["data"]);
-            else
-                (this->*handler)(client, json);
-            return;
-        }
-    }
-
-    // Unknown action
-    Serial.printf("[WebServerManager] Unknown action: %s\n", action.c_str());
-    String errorMsg = "{\"type\":\"error\",\"message\":\"Unknown action: " + action + "\"}";
-    client->text(errorMsg);
 }
 
 // Initialize mode handlers
-void WebServerManager::initializeModeHandlers() {
+void WebServerManager::initializeModeHandlers()
+{
     // Initialize mode handlers with C-style string constants
-    modeHandlers[Modes::OFF] = [this](const JsonObject& params) { this->handleModeOff(params); };
-    modeHandlers[Modes::HOLD] = [this](const JsonObject& params) { this->handleModeHold(params); };
-    modeHandlers[Modes::RAMP] = [this](const JsonObject& params) { this->handleModeRamp(params); };
-    modeHandlers[Modes::TIMER] = [this](const JsonObject& params) { this->handleModeTimer(params); };
+    modeHandlers[Modes::OFF] = [this](const JsonObject &params)
+    { this->handleModeOff(params); };
+    modeHandlers[Modes::HOLD] = [this](const JsonObject &params)
+    { this->handleModeHold(params); };
+    modeHandlers[Modes::RAMP] = [this](const JsonObject &params)
+    { this->handleModeRamp(params); };
+    modeHandlers[Modes::TIMER] = [this](const JsonObject &params)
+    { this->handleModeTimer(params); };
 }
 
 // Mode handler implementations
-void WebServerManager::handleModeOff(const JsonObject& params) {
-    if (modeManager) {
+void WebServerManager::handleModeOff(const JsonObject &params)
+{
+    if (modeManager)
+    {
         modeManager->setOff();
     }
 }
 
-void WebServerManager::handleModeHold(const JsonObject& params) {
-    if (modeManager) {
+void WebServerManager::handleModeHold(const JsonObject &params)
+{
+    if (modeManager)
+    {
         modeManager->setHold(state.tempSetpoint);
     }
 }
 
-void WebServerManager::handleModeRamp(const JsonObject& params) {
-    if (!modeManager) return;
-    
-    float rampRate = params.containsKey("ramp_rate") ? 
-                    params["ramp_rate"].as<float>() : 1.0f;
+void WebServerManager::handleModeRamp(const JsonObject &params)
+{
+    if (!modeManager)
+        return;
+
+    float rampRate = params.containsKey("ramp_rate") ? params["ramp_rate"].as<float>() : 1.0f;
     modeManager->setRamp(state.tempSetpoint, rampRate, 9999);
 }
 
-void WebServerManager::handleModeTimer(const JsonObject& params) {
-    if (modeManager) {
+void WebServerManager::handleModeTimer(const JsonObject &params)
+{
+    if (modeManager)
+    {
         modeManager->setTimer(state.duration, state.tempSetpoint);
     }
 }
 
 // Handles controlUpdate action (mostly state and mode updates)
-void WebServerManager::handleControlUpdate(AsyncWebSocketClient* client, JsonVariant data) {
-    if (!data.is<JsonObject>()) {
+void WebServerManager::handleControlUpdate(AsyncWebSocketClient *client, JsonVariant data)
+{
+    if (!data.is<JsonObject>())
+    {
         sendError(client, "Missing or invalid data field");
         return;
     }
@@ -286,61 +373,42 @@ void WebServerManager::handleControlUpdate(AsyncWebSocketClient* client, JsonVar
     JsonObject obj = data.as<JsonObject>();
     bool stateChanged = false;
 
+    float newTempSetpoint = state.tempSetpoint;
+    int newRpmSetpoint = state.rpmSetpoint;
+    String newMode = state.mode;
+    int newDuration = state.duration;
+
     // Handle temperature setpoint
-    if (obj.containsKey("temp_setpoint")) {
-        float newSetpoint = obj["temp_setpoint"].as<float>();
-        updateStateProperty(state.tempSetpoint, newSetpoint, "Temperature setpoint");
+    if (obj.containsKey("temp_setpoint"))
+    {
+        newTempSetpoint = obj["temp_setpoint"].as<float>();
         stateChanged = true;
     }
 
     // Handle RPM setpoint
-    if (obj.containsKey("rpm_setpoint")) {
-        int newRpm = obj["rpm_setpoint"].as<int>();
-        updateStateProperty(state.rpmSetpoint, newRpm, "RPM setpoint");
+    if (obj.containsKey("rpm_setpoint"))
+    {
+        newRpmSetpoint = obj["rpm_setpoint"].as<int>();
         stateChanged = true;
     }
 
     // Handle mode changes
-    if (obj.containsKey("mode")) {
-        String newMode = obj["mode"].as<String>();
-        if (newMode != state.mode) {
-            // Convert Arduino String to const char* for lookup
-            const char* modeKey = nullptr;
-            if (newMode == Modes::HOLD) modeKey = Modes::HOLD;
-            else if (newMode == Modes::RAMP) modeKey = Modes::RAMP;
-            else if (newMode == Modes::TIMER) modeKey = Modes::TIMER;
-            else if (newMode == Modes::OFF) modeKey = Modes::OFF;
-            
-            if (modeKey) {
-                auto it = modeHandlers.find(modeKey);
-                if (it != modeHandlers.end()) {
-                    updateMode(newMode);
-                    it->second(obj);  // Call the appropriate mode handler
-                    stateChanged = true;
-                }
-            } else {
-                Serial.printf("Unknown mode received: %s\n", newMode.c_str());
-                sendError(client, "Invalid mode: " + newMode);
-                return;
-            }
-        }
+    if (obj.containsKey("mode"))
+    {
+        newMode = obj["mode"].as<String>();
+        stateChanged = true;
     }
 
     // Handle duration changes
-    if (obj.containsKey("duration")) {
-        int newDuration = obj["duration"].as<int>();
-        if (newDuration != state.duration) {
-            state.duration = newDuration;
-            logEvent("Duration changed to " + String(newDuration));
-            
-            if (state.mode == Modes::TIMER && modeManager) {
-                modeManager->setTimer(state.tempSetpoint, state.duration);
-            }
-            stateChanged = true;
-        }
+    if (obj.containsKey("duration"))
+    {
+        newDuration = obj["duration"].as<int>();
+        stateChanged = true;
     }
 
-    if (stateChanged) {
+    if (stateChanged)
+    {
+        StateManager::updateState(state.temperature, state.rpm, newMode, newTempSetpoint, newRpmSetpoint, newDuration, modeManager);
         state.startTime = millis();
         notifyClients();
     }
@@ -376,7 +444,8 @@ void WebServerManager::handleGetHistory(AsyncWebSocketClient *client, JsonVarian
         hasEntries = true;
     }
 
-    if (!hasEntries) {
+    if (!hasEntries)
+    {
         sendError(client, "No history data available");
         return;
     }
@@ -384,11 +453,12 @@ void WebServerManager::handleGetHistory(AsyncWebSocketClient *client, JsonVarian
     histDoc["type"] = "history";
 
     String jsonStr;
-    if (serializeJson(histDoc, jsonStr) == 0) {
+    if (serializeJson(histDoc, jsonStr) == 0)
+    {
         sendError(client, "Failed to serialize history data");
         return;
     }
-    
+
     client->text(jsonStr);
 }
 
@@ -404,13 +474,14 @@ void WebServerManager::handleNotepadList(AsyncWebSocketClient *client, JsonVaria
 
     // listNotes is void, so we don't check its return value
     NotepadManager::getInstance().listNotes(arr);
-    
+
     String out;
-    if (serializeJson(doc, out) == 0) {
+    if (serializeJson(doc, out) == 0)
+    {
         sendError(client, "Failed to serialize note list");
         return;
     }
-    
+
     client->text(out);
 }
 
@@ -424,21 +495,22 @@ void WebServerManager::handleNotepadLoad(AsyncWebSocketClient *client, JsonVaria
 
     String experiment = data["experiment"].as<String>();
     String notes;
-    
+
     // Assuming loadNote is void and populates notes by reference
     NotepadManager::getInstance().loadNote(experiment, notes);
-    
+
     StaticJsonDocument<512> doc;
     doc["type"] = "notepadData";
     doc["experiment"] = experiment;
     doc["notes"] = notes;
-    
+
     String json;
-    if (serializeJson(doc, json) == 0) {
+    if (serializeJson(doc, json) == 0)
+    {
         sendError(client, "Failed to serialize note data");
         return;
     }
-    
+
     client->text(json);
 }
 
@@ -456,7 +528,7 @@ void WebServerManager::handleNotepadSave(AsyncWebSocketClient *client, JsonVaria
 
     String experiment = data["experiment"].as<String>();
     String notes = data["notes"].as<String>();
-    
+
     // Assuming saveNote is void, otherwise adjust accordingly
     NotepadManager::getInstance().saveNote(experiment, notes);
     sendAck(client, "Note saved successfully");
@@ -482,29 +554,36 @@ void WebServerManager::updateStateProperty(int &var, int val, const char *name)
     }
 }
 
-void WebServerManager::updateMode(const String &newMode) {
-    if (newMode != state.mode && 
-        (newMode == Modes::HOLD || 
-         newMode == Modes::RAMP || 
-         newMode == Modes::RECRYSTALLIZATION || 
-         newMode == Modes::TIMER || 
-         newMode == Modes::OFF)) {
+void WebServerManager::updateMode(const String &newMode)
+{
+    if (newMode != state.mode &&
+        (newMode == Modes::HOLD ||
+         newMode == Modes::RAMP ||
+         newMode == Modes::RECRYSTALLIZATION ||
+         newMode == Modes::TIMER ||
+         newMode == Modes::OFF))
+    {
         logEvent("Mode changed from " + state.mode + " to " + newMode);
         state.mode = newMode;
     }
 }
 
-void WebServerManager::logEvent(const String &desc) {
-    if (eventsCount == MAX_EVENTS) {
+void WebServerManager::logEvent(const String &desc)
+{
+    if (eventsCount == MAX_EVENTS)
+    {
         // Shift all events left by one (remove the oldest)
-        for (int i = 0; i < MAX_EVENTS - 1; i++) {
+        for (int i = 0; i < MAX_EVENTS - 1; i++)
+        {
             events[i] = events[i + 1];
         }
         eventsCount--;
     }
-    
+
     // Add the new event at the end
     events[eventsCount].timestamp = millis();
     events[eventsCount].description = desc;
     eventsCount++;
 }
+
+// Add this line near other static/global variables (after server/ws definitions)

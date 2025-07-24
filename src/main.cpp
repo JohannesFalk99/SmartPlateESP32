@@ -1,38 +1,43 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
-#include "WebServerManager.h"
+#include "Managers/WebServerManager.h"
 #include "HeatingElement.h"
-#include "HeaterModeManager.h"
+#include "Managers/HeaterModeManager.h"
 #include "Explorer.h"
 #include "config/Config.h"
+#include "MAX31865Adapter.h"
 
-// Hardware Configuration
-#define RELAY_PIN 5
-#define MAX_TEMP_LIMIT 70.0f
-#define TEMP_FILTER_SIZE 5
-
-// System Configuration
-#define UPDATE_INTERVAL_MS 500
-#define RPM_MIN 100
-#define RPM_MAX 200
-#define RPM_INCREMENT 10
-#define SERIAL_TCP_PORT 23
+// Define the chip select pin for MAX31865 (set to your actual GPIO pin)
+#define CS_PIN 5
 
 // System Objects
-HeatingElement heater(RELAY_PIN, MAX_TEMP_LIMIT, TEMP_FILTER_SIZE);
+MAX31865Adapter maxSensor(CS_PIN); // Use your actual CS pin
+HeatingElement heater(RELAY_PIN, MAX_TEMP_LIMIT, TEMP_FILTER_SIZE, &maxSensor);
 HeaterModeManager modeManager(heater);
-FileSystemExplorer *explorer = nullptr;
+FileSystemExplorer explorer(WebServerManager::getServer());
 
-// System State
+// --- System State ---
 int rpm = RPM_MIN;
-unsigned long lastUpdate = 0;
+SemaphoreHandle_t stateMutex;
 
-// TCP Remote Serial Monitor
+// --- TCP Remote Serial Monitor ---
 WiFiServer serialServer(SERIAL_TCP_PORT);
 WiFiClient serialClient;
 
-// Forward declarations
+// --- Logging Utility ---
+enum class LogLevel { INFO, ERROR, DEBUG };
+void logMessage(LogLevel level, const char* message) {
+    const char* levelStr = "";
+    switch (level) {
+        case LogLevel::INFO: levelStr = "[INFO]"; break;
+        case LogLevel::ERROR: levelStr = "[ERROR]"; break;
+        case LogLevel::DEBUG: levelStr = "[DEBUG]"; break;
+    }
+    Serial.printf("%s %s\n", levelStr, message);
+}
+
+// --- Forward Declarations ---
 void setupWiFi();
 void setupOTA();
 void setupWebServer();
@@ -44,136 +49,124 @@ void handleComplete();
 void handleFault();
 void temperatureChanged(float newTemp);
 
-void temperatureChanged(float newTemp)
-{
-    Serial.printf("[Temperature] Changed to %.2f°C\n", newTemp);
+// --- Temperature Change Handler ---
+void temperatureChanged(float newTemp) {
+    std::string buffer(50, '\0');
+    std::snprintf(buffer.data(), buffer.size(), "[Temperature] Changed to %.2f°C", newTemp);
+    logMessage(LogLevel::INFO, buffer.c_str());
     WebServerManager::instance()->addHistoryEntry(newTemp);
 }
 
-void setup()
-{
+// --- FreeRTOS Tasks ---
+TaskHandle_t heaterTaskHandle = NULL;
+TaskHandle_t webTaskHandle = NULL;
+TaskHandle_t stateTaskHandle = NULL;
+
+void heaterTask(void *pvParameters) {
+    while (true) {
+        heater.update();
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+void webTask(void *pvParameters) {
+    while (true) {
+        WebServerManager::instance()->handle();
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+void stateTask(void *pvParameters) {
+    static unsigned long lastUpdate = 0;
+    while (true) {
+        if (xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100))) {
+            if (millis() - lastUpdate > UPDATE_INTERVAL_MS) {
+                lastUpdate = millis();
+                updateRPM();
+                updateSystemState();
+                WebServerManager::instance()->notifyClients();
+                Serial.printf("[Status] Temp=%.2f°C, RPM=%d, Mode=%s\n",
+                              state.temperature, state.rpm, state.mode.c_str());
+            }
+            modeManager.update(heater.getCurrentTemperature());
+            xSemaphoreGive(stateMutex);
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+// --- Setup Function ---
+void setup() {
     Serial.begin(115200);
     Serial.println("[System] Starting SmartPlate ESP32...");
-
-    // Setup heater callbacks
     heater.setOnFaultCallback(handleFault);
     heater.setOnTemperatureChangedCallback(temperatureChanged);
     modeManager.setOnCompleteCallback(handleComplete);
     modeManager.setOnFaultCallback(handleFault);
-
-    // Initialize hardware
     heater.begin();
-    
-    // Initialize network services
     setupWiFi();
     setupOTA();
     setupWebServer();
-
-    // Initialize system state
     state.mode = Modes::OFF;
-    
     Serial.println("[System] Setup complete!");
+    stateMutex = xSemaphoreCreateMutex();
+    xTaskCreatePinnedToCore(heaterTask, "HeaterTask", 4096, NULL, 1, &heaterTaskHandle, 1);
+    xTaskCreatePinnedToCore(webTask, "WebTask", 4096, NULL, 1, &webTaskHandle, 1);
+    xTaskCreatePinnedToCore(stateTask, "StateTask", 4096, NULL, 1, &stateTaskHandle, 1);
 }
 
-void handleRemoteSerial()
-{
-    // Accept new TCP clients for remote serial
-    if (!serialClient || !serialClient.connected())
-    {
+// --- Serial Handling ---
+void handleRemoteSerial() {
+    if (!serialClient || !serialClient.connected()) {
         WiFiClient newClient = serialServer.available();
-        if (newClient)
-        {
+        if (newClient) {
             serialClient = newClient;
             Serial.println("[SerialServer] Client connected");
         }
     }
-
-    // Forward Serial data to TCP client
-    while (Serial.available())
-    {
-        char c = Serial.read();
-        if (serialClient && serialClient.connected())
-        {
-            serialClient.write(c);
+    while (Serial.available()) {
+        int c = Serial.read();
+        if (serialClient && serialClient.connected() && c != -1) {
+            serialClient.write((char)c);
         }
     }
-
-    // Forward TCP client data back to Serial
-    if (serialClient && serialClient.connected() && serialClient.available())
-    {
+    if (serialClient && serialClient.connected() && serialClient.available()) {
         char c = serialClient.read();
         Serial.write(c);
     }
 }
 
-void loop()
-{
-    // Handle network services
+// --- Main Loop ---
+void loop() {
     ArduinoOTA.handle();
-    WebServerManager::instance()->handle();
-    
-    // Handle TCP serial connections
     handleRemoteSerial();
-
-    // Update system state periodically
-    if (millis() - lastUpdate > UPDATE_INTERVAL_MS)
-    {
-        lastUpdate = millis();
-        
-        heater.update();
-        updateRPM();
-        updateSystemState();
-        
-        WebServerManager::instance()->notifyClients();
-        
-        Serial.printf("[Status] Temp=%.2f°C, RPM=%d, Mode=%s\n",
-                      state.temperature, state.rpm, state.mode.c_str());
-    }
-
-    modeManager.update(heater.getCurrentTemperature());
+    vTaskDelay(pdMS_TO_TICKS(10));
 }
 
-void handleComplete()
-{
-    Serial.println("[HeaterModeManager] Operation complete");
-}
+// --- Callbacks ---
+void handleComplete() { logMessage(LogLevel::INFO, "[HeaterModeManager] Operation complete"); }
+void handleFault() { logMessage(LogLevel::ERROR, "[HeaterModeManager] FAULT detected! Heater stopped"); }
 
-void handleFault()
-{
-    Serial.println("[HeaterModeManager] FAULT detected! Heater stopped");
-}
-
-void setupWiFi()
-{
+// --- WiFi Setup ---
+void setupWiFi() {
+    logMessage(LogLevel::INFO, "[WiFi] Connecting...");
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.print("[WiFi] Connecting");
-    
-    while (WiFi.status() != WL_CONNECTED)
-    {
+    while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
+        logMessage(LogLevel::DEBUG, "[WiFi] Attempting to connect...");
     }
-    
-    Serial.printf("\n[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
+    char buffer[50];
+    snprintf(buffer, sizeof(buffer), "[WiFi] Connected! IP: %s", WiFi.localIP().toString().c_str());
+    logMessage(LogLevel::INFO, buffer);
 }
 
-void setupOTA()
-{
+// --- OTA Setup ---
+void setupOTA() {
     ArduinoOTA.setHostname("ESP32-SmartPlate");
-    
-    ArduinoOTA.onStart([]() {
-        Serial.println("[OTA] Update started");
-    });
-    
-    ArduinoOTA.onEnd([]() {
-        Serial.println("\n[OTA] Update complete");
-    });
-    
+    ArduinoOTA.onStart([]() { Serial.println("[OTA] Update started"); });
+    ArduinoOTA.onEnd([]() { Serial.println("\n[OTA] Update complete"); });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
         Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
     });
-    
     ArduinoOTA.onError([](ota_error_t error) {
         Serial.printf("[OTA] Error[%u]: ", error);
         switch (error) {
@@ -185,47 +178,32 @@ void setupOTA()
             default: Serial.println("Unknown Error"); break;
         }
     });
-    
     ArduinoOTA.begin();
     Serial.println("[OTA] Ready");
 }
 
-void setupWebServer()
-{
-    // Start TCP remote serial server
+// --- Web Server Setup ---
+void setupWebServer() {
     serialServer.begin();
     serialServer.setNoDelay(true);
     Serial.printf("[SerialServer] Started on port %d\n", SERIAL_TCP_PORT);
-
-    // Setup web server components
     WebServerManager::instance()->attachModeManager(&modeManager);
-
-    // Setup file system explorer
-    explorer = new FileSystemExplorer(WebServerManager::instance()->getServer());
-    explorer->begin();
+    explorer.begin();
     Serial.println("[FileSystem] Explorer initialized");
-
-    // Start the web server
     WebServerManager::instance()->begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.println("[WebServer] Started");
 }
 
-void updateRPM()
-{
-    rpm = (rpm >= RPM_MAX) ? RPM_MIN : rpm + RPM_INCREMENT;
-}
-
-void updateSystemState()
-{
-    state.temperature = heater.getCurrentTemperature();
+// --- State Update Helpers ---
+void updateRPM() { rpm = (rpm >= RPM_MAX) ? RPM_MIN : rpm + RPM_INCREMENT; }
+void updateState(float temperature, int rpm, HeaterModeManager::Mode mode) {
+    state.temperature = temperature;
     state.rpm = rpm;
-    state.mode = getModeString(modeManager.getCurrentMode());
+    state.mode = getModeString(mode);
 }
-
-const char* getModeString(HeaterModeManager::Mode mode)
-{
-    switch (mode)
-    {
+void updateSystemState() { updateState(heater.getCurrentTemperature(), rpm, modeManager.getCurrentMode()); }
+const char* getModeString(HeaterModeManager::Mode mode) {
+    switch (mode) {
         case HeaterModeManager::OFF: return Modes::OFF;
         case HeaterModeManager::RAMP: return Modes::RAMP;
         case HeaterModeManager::HOLD: return Modes::HOLD;
@@ -233,3 +211,4 @@ const char* getModeString(HeaterModeManager::Mode mode)
         default: return Modes::OFF;
     }
 }
+

@@ -344,6 +344,43 @@ document.addEventListener('DOMContentLoaded', () => {
   function sendControlUpdate(updateData) {
     sendMessage({ action: 'controlUpdate', data: updateData });
   }
+  function showDashboardNotification(message, type = 'success') {
+    // Remove any existing notification
+    let existing = document.getElementById('dashboardNotification');
+    if (existing) existing.remove();
+
+    // Create notification div
+    const notif = document.createElement('div');
+    notif.id = 'dashboardNotification';
+    notif.textContent = message;
+    notif.className = `alert alert-${type}`;
+    notif.style.position = 'fixed';
+    notif.style.top = '20px';
+    notif.style.right = '20px';
+    notif.style.zIndex = 9999;
+    notif.style.minWidth = '200px';
+    notif.style.textAlign = 'center';
+    notif.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+    document.body.appendChild(notif);
+
+    setTimeout(() => {
+      notif.remove();
+    }, 2500);
+  }
+  function showStatusMessage(msg, type = 'info') {
+    let statusDiv = document.getElementById('notepadStatus');
+    if (!statusDiv) {
+      statusDiv = document.createElement('div');
+      statusDiv.id = 'notepadStatus';
+      document.body.appendChild(statusDiv);
+    }
+    statusDiv.textContent = msg;
+    statusDiv.className = `mt-2 alert alert-${type}`;
+    statusDiv.style.display = 'block';
+    setTimeout(() => {
+      statusDiv.style.display = 'none';
+    }, 2500);
+  }
 
   function setupControlHandlers() {
     $('#modeSelect').on('change', updateModeFields);
@@ -358,7 +395,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.mode === 'Ramp') data.ramp_rate = parseFloat($('#rampRate').val()) || undefined;
       if (data.mode === 'Timer') data.duration = parseInt($('#timerDuration').val()) || undefined;
       sendControlUpdate(data);
-      alert('Settings updated');
+      showDashboardNotification('Settings updated successfully.', 'success');
       window.formSyncedOnce = false;
     });
 

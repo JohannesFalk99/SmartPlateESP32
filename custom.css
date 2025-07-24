@@ -1,0 +1,11 @@
+.monaco-workbench .explorer-viewlet .monaco-list,
+.monaco-workbench .outline-view .monaco-list,
+.monaco-workbench .timeline-view .monaco-list {
+  font-size: 12px !important;
+}
+
+/* Make Copilot chat/timeline rows smaller */
+.monaco-tl-row,
+.monaco-tl-row * {
+  font-size: 12px !important;
+}

@@ -68,5 +68,15 @@
         "cinttypes": "cpp",
         "typeinfo": "cpp",
         "variant": "cpp"
-    }
+    },
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}\\compile_commands.json",
+    "[snippets]": {
+        "editor.snippets.codeActions.enabled": true
+    },
+    "editor.suggest.preview": true,
+    "workbench.commandPalette.experimental.suggestCommands": true,
+    "editor.fontFamily": "Consolas, 'Courier New', monospace",
+    "vscode_custom_css.imports": [
+        "file:///C:/Users/Johan/Documents/PlatformIO/Projects/SmartPlateESP32/custom.css"
+    ]
 }

@@ -68,6 +68,13 @@ public:
     // Attach external mode manager dependency
     void attachModeManager(HeaterModeManager *manager);
     void addHistoryEntry(float temperature);
+    // Action handler functions
+    void handleControlUpdate(AsyncWebSocketClient *client, JsonVariant data);
+
+    void handleGetHistory(AsyncWebSocketClient *client, JsonVariant data);
+    void handleNotepadList(AsyncWebSocketClient *client, JsonVariant data);
+    void handleNotepadLoad(AsyncWebSocketClient *client, JsonVariant data);
+    void handleNotepadSave(AsyncWebSocketClient *client, JsonVariant data);
 
 private:
     // Web server and websocket instances
@@ -79,7 +86,9 @@ private:
     // Helper methods
     void sendAck(AsyncWebSocketClient *client, const String &message);
     void sendError(AsyncWebSocketClient *client, const String &error);
-    
+
+    void sendJsonResponse(AsyncWebSocketClient *client, const JsonObject &response);
+
     // Initialization methods
     bool beginWiFi(const char *ssid, const char *password);
     bool beginFileSystem();
@@ -95,24 +104,17 @@ private:
     void handleWebSocketMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len);
 
     // === Action handler dispatch system ===
-    typedef void (WebServerManager::*ActionHandler)(AsyncWebSocketClient *client, JsonVariant data);
+    using ActionHandler = std::function<void(WebServerManager*, AsyncWebSocketClient*, JsonVariant)>;
 
-    struct ActionMapping
-    {
-        const char *actionName;
+    struct ActionMapping {
+        const char* action;
         ActionHandler handler;
     };
 
     static const ActionMapping actionMap[];
     static const int actionMapSize;
 
-    // Action handler functions
-    void handleControlUpdate(AsyncWebSocketClient *client, JsonVariant data);
    
-    void handleGetHistory(AsyncWebSocketClient *client, JsonVariant data);
-    void handleNotepadList(AsyncWebSocketClient *client, JsonVariant data);
-    void handleNotepadLoad(AsyncWebSocketClient *client, JsonVariant data);
-    void handleNotepadSave(AsyncWebSocketClient *client, JsonVariant data);
 
     // Mode handler function type
     using ModeHandler = std::function<void(const JsonObject&)>;
@@ -154,10 +156,10 @@ private:
 
 // Global shared state
 extern SystemState state;
-extern HistoryEntry history[HISTORY_SIZE];
+
 extern int historyIndex;
 
-extern EventEntry events[MAX_EVENTS];
+
 extern int eventsCount;
 
 #endif // WEBSERVERMANAGER_H

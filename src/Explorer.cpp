@@ -1,9 +1,14 @@
+// Explorer.cpp
+// This file implements file system operations for the ESP32.
+
 #include "Explorer.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
+// Constructor for FileSystemExplorer class
 FileSystemExplorer::FileSystemExplorer(AsyncWebServer &srv) : server(srv) {}
 
+// Initialize the file system and set up server routes
 void FileSystemExplorer::begin()
 {
     if (!LittleFS.begin())
@@ -12,6 +17,7 @@ void FileSystemExplorer::begin()
         return;
     }
 
+    // Define server routes for file system operations
     server.on("/fs/list", HTTP_GET, std::bind(&FileSystemExplorer::handleList, this, std::placeholders::_1));
     server.on("/fs/delete", HTTP_GET, std::bind(&FileSystemExplorer::handleDelete, this, std::placeholders::_1));
     server.on("/fs/download", HTTP_GET, std::bind(&FileSystemExplorer::handleDownload, this, std::placeholders::_1));
@@ -22,6 +28,7 @@ void FileSystemExplorer::begin()
                   request->send(200, "text/plain", "Upload complete"); }, std::bind(&FileSystemExplorer::onUpload, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4, std::placeholders::_5, std::placeholders::_6));
 }
 
+// Handle listing files in a directory
 void FileSystemExplorer::handleList(AsyncWebServerRequest *request)
 {
     String dir = "/";
@@ -64,6 +71,7 @@ void FileSystemExplorer::handleList(AsyncWebServerRequest *request)
     request->send(200, "application/json", out);
 }
 
+// Handle deleting a file
 void FileSystemExplorer::handleDelete(AsyncWebServerRequest *request)
 {
     if (!request->hasParam("path"))
@@ -90,6 +98,7 @@ void FileSystemExplorer::handleDelete(AsyncWebServerRequest *request)
         request->send(500, "text/plain", "Failed to delete");
 }
 
+// Handle downloading a file
 void FileSystemExplorer::handleDownload(AsyncWebServerRequest *request)
 {
     if (!request->hasParam("path"))
@@ -131,11 +140,12 @@ void FileSystemExplorer::handleDownload(AsyncWebServerRequest *request)
     request->send(response);
 }
 
+// Handle file upload (not used, actual upload handled in onUpload)
 void FileSystemExplorer::handleUpload(AsyncWebServerRequest *request)
 {
-    // This function remains empty, actual upload handled in onUpload
 }
 
+// Handle the upload process
 void FileSystemExplorer::onUpload(AsyncWebServerRequest *request, String filename, size_t index,
                                   uint8_t *data, size_t len, bool final)
 {

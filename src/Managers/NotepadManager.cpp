@@ -24,6 +24,7 @@ void NotepadManager::listNotes(JsonArray &arr)
 {
     Serial.println(F("[NotepadManager] listNotes() called"));
 
+    // Open the root directory
     File root = LittleFS.open("/");
     if (!root || !root.isDirectory())
     {
@@ -36,6 +37,7 @@ void NotepadManager::listNotes(JsonArray &arr)
     int fileCount = 0;
     int noteCount = 0;
 
+    // Iterate through all files in the root directory
     File file = root.openNextFile();
     while (file)
     {
@@ -50,6 +52,7 @@ void NotepadManager::listNotes(JsonArray &arr)
             String name = file.name();
             Serial.printf("[NotepadManager] Found file: %s\n", name.c_str());
 
+            // Check if the file is a JSON file
             if (name.endsWith(".json"))
             {
                 // Strip leading '/' and '.json' extension
@@ -73,15 +76,18 @@ void NotepadManager::listNotes(JsonArray &arr)
 // Load a note by experiment name into the provided string, returns true on success
 bool NotepadManager::loadNote(const String &experiment, String &outNotes)
 {
+    // Construct the file path for the note
     String path = "/" + experiment + ".json";
     Serial.printf("[NotepadManager] Attempting to load note from path: %s\n", path.c_str());
 
+    // Check if the file exists
     if (!LittleFS.exists(path))
     {
         Serial.printf("[NotepadManager] Note file does NOT exist: %s\n", path.c_str());
         return false;
     }
 
+    // Open the file for reading
     File file = LittleFS.open(path, "r");
     if (!file)
     {
@@ -91,14 +97,16 @@ bool NotepadManager::loadNote(const String &experiment, String &outNotes)
 
     Serial.printf("[NotepadManager] Successfully opened note file: %s\n", path.c_str());
 
+    // Read the file content into the output string
     outNotes = file.readString();
     file.close();
 
     Serial.printf("[NotepadManager] Read %u bytes from file %s\n", outNotes.length(), path.c_str());
 
+    // Check if the file content is empty
     if (outNotes.length() == 0)
     {
-        Serial.printf("[NotepadManager] Warning: note file %s is empty!\n", path.c_str());
+        Serial.printf("[NotepadManager] Note file is empty: %s\n", path.c_str());
         return false;
     }
 
