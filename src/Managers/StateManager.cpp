@@ -1,6 +1,6 @@
 #include "StateManager.h"
 #include "WebServerManager.h"
-
+#include "SerialRemote.h"
 void StateManager::updateState(float temperature, int rpm, const String &mode, float tempSetpoint, int rpmSetpoint, int duration, HeaterModeManager* modeManager)
 {
     state.temperature = temperature;
@@ -22,13 +22,10 @@ void StateManager::updateState(float temperature, int rpm, const String &mode, f
         }
         modeManager->setTargetTemperature(tempSetpoint);
     }
-    Serial.printf("[StateManager] Updated state: Temp=%.2f°C, RPM=%d, Mode=%s\n",
-                  state.temperature, state.rpm, state.mode.c_str());
+    logMessagef(LogLevel::INFO, "[StateManager] Updated state: Temp=%.2f°C, RPM=%d, Mode=%s", state.temperature, state.rpm, state.mode.c_str());
 }
 
 void StateManager::logState()
 {
-    Serial.printf("[StateManager] Current state: Temp=%.2f°C, RPM=%d, Mode=%s, TempSetpoint=%.2f, RpmSetpoint=%d, Duration=%d\n",
-                  state.temperature, state.rpm, state.mode.c_str(),
-                  state.tempSetpoint, state.rpmSetpoint, state.duration);
+    logMessagef(LogLevel::INFO, "[StateManager] Current state: Temp=%.2f°C, RPM=%d, Mode=%s, TempSetpoint=%.2f, RpmSetpoint=%d, Duration=%d", state.temperature, state.rpm, state.mode.c_str(), state.tempSetpoint, state.rpmSetpoint, state.duration);
 }

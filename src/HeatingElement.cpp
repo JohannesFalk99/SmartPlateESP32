@@ -1,7 +1,7 @@
 #include "HeatingElement.h"
 #include <Adafruit_MAX31865.h>
 #include "MAX31865Adapter.h"
-
+#include "SerialRemote.h"
 // Constants for PT100 sensor and reference resistor
 constexpr float RREF = 424.0f;
 constexpr float RNOMINAL = 100.0f;
@@ -39,7 +39,7 @@ void HeatingElement::update()
         uint8_t faultCode = max->readFault();
         if (faultCode)
         {
-            Serial.printf("MAX31865 Fault: 0x%02X\n", faultCode);
+            logMessagef(LogLevel::INFO, "MAX31865 Fault: 0x%02X", faultCode);
             max->clearFault();
         }
     }
@@ -168,5 +168,5 @@ void HeatingElement::updateRunningState(bool relayOn)
             onHeaterOff();
     }
 }
-    
+
 

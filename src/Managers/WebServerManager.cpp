@@ -10,7 +10,7 @@
 #include "Explorer.h"
 #include "config/Config.h"
 #include "WebServerActions.h"
-
+#include "SerialRemote.h"
 #include "StateManager.h"
 // Define the static server members
 AsyncWebServer WebServerManager::server(SERVER_PORT);
@@ -55,7 +55,7 @@ const WebServerManager::ActionMapping WebServerManager::actionMap[] = {
         client->text(configJson);
     }},
     {"resetSystem", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data) {
-        Serial.println(F("[WebServerManager] Resetting system..."));
+        logMessagef(LogLevel::INFO, "[WebServerManager] Resetting system...");
         ESP.restart();
     }},
     {"updateState", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant json) {

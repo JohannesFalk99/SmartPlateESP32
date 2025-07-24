@@ -8,6 +8,8 @@
 #include "config/Config.h"
 #include "MAX31865Adapter.h"
 
+#include "SerialRemote.h"
+
 // Define the chip select pin for MAX31865 (set to your actual GPIO pin)
 #define CS_PIN 5
 
@@ -20,22 +22,6 @@ FileSystemExplorer explorer(WebServerManager::getServer());
 // --- System State ---
 int rpm = RPM_MIN;
 SemaphoreHandle_t stateMutex;
-
-// --- TCP Remote Serial Monitor ---
-WiFiServer serialServer(SERIAL_TCP_PORT);
-WiFiClient serialClient;
-
-// --- Logging Utility ---
-enum class LogLevel { INFO, ERROR, DEBUG };
-void logMessage(LogLevel level, const char* message) {
-    const char* levelStr = "";
-    switch (level) {
-        case LogLevel::INFO: levelStr = "[INFO]"; break;
-        case LogLevel::ERROR: levelStr = "[ERROR]"; break;
-        case LogLevel::DEBUG: levelStr = "[DEBUG]"; break;
-    }
-    Serial.printf("%s %s\n", levelStr, message);
-}
 
 // --- Forward Declarations ---
 void setupWiFi();
@@ -83,8 +69,7 @@ void stateTask(void *pvParameters) {
                 updateRPM();
                 updateSystemState();
                 WebServerManager::instance()->notifyClients();
-                Serial.printf("[Status] Temp=%.2f°C, RPM=%d, Mode=%s\n",
-                              state.temperature, state.rpm, state.mode.c_str());
+                logMessagef(LogLevel::INFO, "[Status] Temp=%.2f°C, RPM=%d, Mode=%s", state.temperature, state.rpm, state.mode.c_str());
             }
             modeManager.update(heater.getCurrentTemperature());
             xSemaphoreGive(stateMutex);
@@ -106,7 +91,7 @@ void setup() {
     setupOTA();
     setupWebServer();
     state.mode = Modes::OFF;
-    Serial.println("[System] Setup complete!");
+    logMessagef(LogLevel::INFO, "[System] Setup complete!");
     stateMutex = xSemaphoreCreateMutex();
     xTaskCreatePinnedToCore(heaterTask, "HeaterTask", 4096, NULL, 1, &heaterTaskHandle, 1);
     xTaskCreatePinnedToCore(webTask, "WebTask", 4096, NULL, 1, &webTaskHandle, 1);
@@ -114,25 +99,19 @@ void setup() {
 }
 
 // --- Serial Handling ---
-void handleRemoteSerial() {
-    if (!serialClient || !serialClient.connected()) {
-        WiFiClient newClient = serialServer.available();
-        if (newClient) {
-            serialClient = newClient;
-            Serial.println("[SerialServer] Client connected");
-        }
-    }
-    while (Serial.available()) {
-        int c = Serial.read();
-        if (serialClient && serialClient.connected() && c != -1) {
-            serialClient.write((char)c);
-        }
-    }
-    if (serialClient && serialClient.connected() && serialClient.available()) {
-        char c = serialClient.read();
-        Serial.write(c);
-    }
-}
+// void handleRemoteSerial() {
+//     // Example: Send a periodic message to the TCP client (no USB required)
+//     static unsigned long lastMsg = 0;
+//     if (millis() - lastMsg > 1000) {
+//         Serial.println("[ESP32] Remote TCP debug: SmartPlate is running!");
+//         lastMsg = millis();
+//     }
+//     // If you want to echo data from TCP client to ESP32 log
+//     if (Serial.available()) {
+//         char c = Serial.read();
+//         Serial.write(c); // Optional: echo to hardware Serial
+//     }
+// }
 
 // --- Main Loop ---
 void loop() {
@@ -184,7 +163,7 @@ void setupOTA() {
 
 // --- Web Server Setup ---
 void setupWebServer() {
-    serialServer.begin();
+    serialServer.begin(23);
     serialServer.setNoDelay(true);
     Serial.printf("[SerialServer] Started on port %d\n", SERIAL_TCP_PORT);
     WebServerManager::instance()->attachModeManager(&modeManager);

@@ -169,6 +169,12 @@
                 <p>Settings</p>
               </a>
             </li>
+            <li class="nav-item">
+              <a href="#" class="nav-link" id="resetEsp32Tab">
+                <i class="nav-icon fas fa-sync-alt"></i>
+                <p>Restart ESP32</p>
+              </a>
+            </li>
           </ul>
         </nav>
       </div>
@@ -435,6 +441,21 @@
   </div>
 
   <script>
+    document.getElementById('resetEsp32Tab').onclick = function (e) {
+      e.preventDefault();
+      if (confirm('Are you sure you want to restart the ESP32?')) {
+        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+          window.ws.send(JSON.stringify({ action: 'resetSystem' }));
+        } else {
+          const tempWs = new WebSocket(`ws://${location.host}/ws`);
+          tempWs.onopen = () => {
+            tempWs.send(JSON.stringify({ action: 'resetSystem' }));
+            tempWs.close();
+          };
+        }
+      }
+    };
+
     // Activate Bootstrap-like tabs using jQuery
     $(function () {
       $('a[data-toggle="tab"]').on('click', function (e) {

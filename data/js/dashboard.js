@@ -139,21 +139,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateChart(data) {
-    // Ensure chartStartTime is initialized only once
-    if (!chartStartTime) {
-      console.warn('chartStartTime missing, using current time as fallback.');
-      chartStartTime = Date.now(); // Only fallback if truly uninitialized
-      return; // Skip this update to avoid bad elapsedSec
+    // Use backend timestamp if available
+    if (data.time) {
+      if (!chartStartTime) {
+        chartStartTime = new Date(data.time).getTime();
+      }
+      const elapsedSec = Math.floor((new Date(data.time).getTime() - chartStartTime) / 1000);
+      if (elapsedSec < 0 || isNaN(elapsedSec)) return;
+      fullData.labels.push(elapsedSec);
+      fullData.temps.push(data.temperature);
+      detectAndAddEvents(data, elapsedSec);
+      updateChartAggregated();
+    } else {
+      // Fallback: skip update if no timestamp
+      console.warn('No timestamp in data, skipping chart update.');
     }
-
-    const elapsedSec = Math.floor((Date.now() - chartStartTime) / 1000);
-    if (elapsedSec < 0 || isNaN(elapsedSec)) return; // Avoid corrupt points
-
-    fullData.labels.push(elapsedSec);
-    fullData.temps.push(data.temperature);
-
-    detectAndAddEvents(data, elapsedSec);
-    updateChartAggregated();
   }
   
 

@@ -4,6 +4,9 @@
 #include "Explorer.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include "config/Config.h"
+#include "Managers/HeaterModeManager.h" // For LogLevel
+#include "SerialRemote.h"
 
 // Constructor for FileSystemExplorer class
 FileSystemExplorer::FileSystemExplorer(AsyncWebServer &srv) : server(srv) {}
@@ -13,7 +16,7 @@ void FileSystemExplorer::begin()
 {
     if (!LittleFS.begin())
     {
-        Serial.println("LittleFS Mount Failed");
+        logMessagef(LogLevel::ERROR, "LittleFS Mount Failed");
         return;
     }
 

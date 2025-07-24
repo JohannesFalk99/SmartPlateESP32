@@ -2,7 +2,7 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include "NotepadManager.h"
-
+#include "SerialRemote.h"
 // Singleton instance getter
 NotepadManager &NotepadManager::getInstance()
 {
@@ -15,14 +15,14 @@ NotepadManager::NotepadManager()
     // Ensure LittleFS is mounted (should already be done, but safe)
     if (!LittleFS.begin(true))
     {
-        Serial.println(F("[NotepadManager] Failed to mount LittleFS"));
+        logMessagef(LogLevel::ERROR, "[NotepadManager] Failed to mount LittleFS");
     }
 }
 
 // List all saved note filenames (without extension) into the JSON array "experiments"
 void NotepadManager::listNotes(JsonArray &arr)
 {
-    Serial.println(F("[NotepadManager] listNotes() called"));
+    logMessagef(LogLevel::INFO, "[NotepadManager] listNotes() called");
 
     // Open the root directory
     File root = LittleFS.open("/");
@@ -32,7 +32,7 @@ void NotepadManager::listNotes(JsonArray &arr)
         return;
     }
 
-    Serial.println(F("[NotepadManager] Opened root directory, scanning files..."));
+    logMessagef(LogLevel::INFO, "[NotepadManager] Opened root directory, scanning files...");
 
     int fileCount = 0;
     int noteCount = 0;
