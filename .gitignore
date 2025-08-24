@@ -660,20 +660,3 @@ latex/Makefile
 latex/refman.tex
 latex/tabu_doxygen.sty
 
-# Build / tool caches
-.cache/
-.clangd/
-.clang-format
-
-# PlatformIO build outputs
-.pio/build/
-.pio/libdeps/
-
-# OS noise
-Thumbs.db
-Desktop.ini
-
-# Editor backups
-*.swp
-*.code-workspace
-*.tmp
