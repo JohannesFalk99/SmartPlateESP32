@@ -12,6 +12,7 @@
 #include "WebServerActions.h"
 #include "SerialRemote.h"
 #include "StateManager.h"
+#include <array>
 // Define the static server members
 AsyncWebServer WebServerManager::server(SERVER_PORT);
 AsyncWebSocket WebServerManager::ws(WEBSOCKET_PATH);
@@ -586,4 +587,5 @@ void WebServerManager::logEvent(const String &desc)
     eventsCount++;
 }
 
+// Add this line near other static/global variables (after server/ws definitions)
 // Add this line near other static/global variables (after server/ws definitions)
