@@ -1,0 +1,2 @@
+// Archived StirrerModeManager reference (not compiled)
+// Original content trimmed for repository cleanliness.
