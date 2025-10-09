@@ -35,7 +35,12 @@ void handleComplete();
 void handleFault();
 void temperatureChanged(float newTemp);
 
-// --- Temperature Change Handler ---
+/**
+ * @brief Callback handler for temperature changes
+ * @param newTemp New temperature value in degrees Celsius
+ * 
+ * Logs the temperature change and adds entry to history
+ */
 void temperatureChanged(float newTemp) {
     std::string buffer(50, '\0');
     std::snprintf(buffer.data(), buffer.size(), "[Temperature] Changed to %.2f°C", newTemp);
@@ -48,18 +53,38 @@ TaskHandle_t heaterTaskHandle = NULL;
 TaskHandle_t webTaskHandle = NULL;
 TaskHandle_t stateTaskHandle = NULL;
 
+/**
+ * @brief FreeRTOS task for heater control
+ * @param pvParameters Task parameters (unused)
+ * 
+ * Updates heater state every 500ms
+ */
 void heaterTask(void *pvParameters) {
     while (true) {
         heater.update();
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
+
+/**
+ * @brief FreeRTOS task for web server handling
+ * @param pvParameters Task parameters (unused)
+ * 
+ * Handles web server events every 50ms
+ */
 void webTask(void *pvParameters) {
     while (true) {
         WebServerManager::instance()->handle();
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
+
+/**
+ * @brief FreeRTOS task for system state management
+ * @param pvParameters Task parameters (unused)
+ * 
+ * Updates system state, RPM, and mode manager periodically
+ */
 void stateTask(void *pvParameters) {
     static unsigned long lastUpdate = 0;
     while (true) {
@@ -78,7 +103,11 @@ void stateTask(void *pvParameters) {
     }
 }
 
-// --- Setup Function ---
+/**
+ * @brief Arduino setup function - initializes system components
+ * 
+ * Initializes serial, heater, WiFi, OTA, web server, and FreeRTOS tasks
+ */
 void setup() {
     Serial.begin(115200);
     Serial.println("[System] Starting SmartPlate ESP32...");
@@ -113,18 +142,30 @@ void setup() {
 //     }
 // }
 
-// --- Main Loop ---
+/**
+ * @brief Arduino main loop function
+ * 
+ * Handles OTA updates and remote serial communication
+ */
 void loop() {
     ArduinoOTA.handle();
     handleRemoteSerial();
     vTaskDelay(pdMS_TO_TICKS(10));
 }
 
-// --- Callbacks ---
+/**
+ * @brief Callback handler for operation completion
+ */
 void handleComplete() { logMessage(LogLevel::INFO, "[HeaterModeManager] Operation complete"); }
+
+/**
+ * @brief Callback handler for fault detection
+ */
 void handleFault() { logMessage(LogLevel::ERROR, "[HeaterModeManager] FAULT detected! Heater stopped"); }
 
-// --- WiFi Setup ---
+/**
+ * @brief Initialize WiFi connection in station mode
+ */
 void setupWiFi() {
     logMessage(LogLevel::INFO, "[WiFi] Connecting...");
     WiFi.mode(WIFI_STA);
@@ -138,7 +179,11 @@ void setupWiFi() {
     logMessage(LogLevel::INFO, buffer);
 }
 
-// --- OTA Setup ---
+/**
+ * @brief Initialize Over-The-Air (OTA) update functionality
+ * 
+ * Sets up OTA with hostname and event callbacks
+ */
 void setupOTA() {
     ArduinoOTA.setHostname("ESP32-SmartPlate");
     ArduinoOTA.onStart([]() { Serial.println("[OTA] Update started"); });
@@ -161,7 +206,9 @@ void setupOTA() {
     Serial.println("[OTA] Ready");
 }
 
-// --- Web Server Setup ---
+/**
+ * @brief Initialize web server, file explorer, and remote serial
+ */
 void setupWebServer() {
     serialServer.begin(23);
     serialServer.setNoDelay(true);
@@ -173,14 +220,33 @@ void setupWebServer() {
     Serial.println("[WebServer] Started");
 }
 
-// --- State Update Helpers ---
+/**
+ * @brief Update RPM value in a cycling pattern
+ */
 void updateRPM() { rpm = (rpm >= RPM_MAX) ? RPM_MIN : rpm + RPM_INCREMENT; }
+
+/**
+ * @brief Update system state with current values
+ * @param temperature Current temperature in degrees Celsius
+ * @param rpm Current RPM value
+ * @param mode Current heater operating mode
+ */
 void updateState(float temperature, int rpm, HeaterModeManager::Mode mode) {
     state.temperature = temperature;
     state.rpm = rpm;
     state.mode = getModeString(mode);
 }
+
+/**
+ * @brief Update system state from current sensor readings
+ */
 void updateSystemState() { updateState(heater.getCurrentTemperature(), rpm, modeManager.getCurrentMode()); }
+
+/**
+ * @brief Convert Mode enum to string representation
+ * @param mode HeaterModeManager Mode enum value
+ * @return const char* String representation of the mode
+ */
 const char* getModeString(HeaterModeManager::Mode mode) {
     switch (mode) {
         case HeaterModeManager::OFF: return Modes::OFF;
