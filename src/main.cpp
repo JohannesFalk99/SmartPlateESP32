@@ -1,14 +1,14 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ArduinoOTA.h>
-#include "Managers/WebServerManager.h"
-#include "HeatingElement.h"
-#include "Managers/HeaterModeManager.h"
-#include "Explorer.h"
+#include "managers/WebServerManager.h"
+#include "hardware/HeatingElement.h"
+#include "managers/HeaterModeManager.h"
+#include "utilities/FileSystemExplorer.h"
 #include "config/Config.h"
-#include "MAX31865Adapter.h"
+#include <MAX31865Adapter.h>
 
-#include "SerialRemote.h"
+#include "utilities/SerialRemote.h"
 
 // Define the chip select pin for MAX31865 (set to your actual GPIO pin)
 #define CS_PIN 5

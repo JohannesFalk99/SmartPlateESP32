@@ -1,5 +1,5 @@
 #pragma once
-#include "ITemperatureSensor.h"
+#include "hardware/ITemperatureSensor.h"
 #include <Adafruit_MAX31865.h>
 
 /**

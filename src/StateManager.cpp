@@ -1,6 +1,6 @@
-#include "StateManager.h"
-#include "WebServerManager.h"
-#include "SerialRemote.h"
+#include "managers/StateManager.h"
+#include "managers/WebServerManager.h"
+#include "utilities/SerialRemote.h"
 void StateManager::updateState(float temperature, int rpm, const String &mode, float tempSetpoint, int rpmSetpoint, int duration, HeaterModeManager* modeManager)
 {
     state.temperature = temperature;

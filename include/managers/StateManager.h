@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
-#include "HeaterModeManager.h"
-#include "WebServerManager.h" // For SystemState
+#include "managers/HeaterModeManager.h"
+#include "managers/WebServerManager.h" // For SystemState
 
 /**
  * @brief Manages global system state and provides state update utilities

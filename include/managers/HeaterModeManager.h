@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include "HeatingElement.h"
+#include "hardware/HeatingElement.h"
 
 /**
  * @brief Manages different operating modes for the heating element

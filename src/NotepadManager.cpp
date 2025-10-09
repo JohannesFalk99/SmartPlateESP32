@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
-#include "NotepadManager.h"
-#include "SerialRemote.h"
+#include "managers/NotepadManager.h"
+#include "utilities/SerialRemote.h"
 // Singleton instance getter
 NotepadManager &NotepadManager::getInstance()
 {

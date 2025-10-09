@@ -1,7 +1,7 @@
-#include "HeatingElement.h"
+#include "hardware/HeatingElement.h"
 #include <Adafruit_MAX31865.h>
-#include "MAX31865Adapter.h"
-#include "SerialRemote.h"
+#include <MAX31865Adapter.h>
+#include "utilities/SerialRemote.h"
 // Constants for PT100 sensor and reference resistor
 constexpr float RREF = 424.0f;
 constexpr float RNOMINAL = 100.0f;

@@ -10,8 +10,8 @@
 #include <LittleFS.h>
 #include <unordered_map>
 #include <functional>
-#include "HeaterModeManager.h"
-#include "NotepadManager.h"
+#include "managers/HeaterModeManager.h"
+#include "managers/NotepadManager.h"
 #include "config/Config.h"
 
 // Constants
