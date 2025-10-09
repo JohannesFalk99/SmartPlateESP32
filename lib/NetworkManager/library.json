@@ -1,0 +1,14 @@
+{
+  "name": "NetworkManager",
+  "version": "1.0.0",
+  "description": "Network management abstraction for WiFi and OTA with Arduino/ESP-IDF support",
+  "keywords": "network, wifi, ota, esp32",
+  "authors": [
+    {
+      "name": "SmartPlate Team"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}
