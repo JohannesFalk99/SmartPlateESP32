@@ -1,12 +1,12 @@
-// Explorer.cpp
+// FileSystemExplorer.cpp
 // This file implements file system operations for the ESP32.
 
-#include "Explorer.h"
+#include "utilities/FileSystemExplorer.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include "config/Config.h"
-#include "Managers/HeaterModeManager.h" // For LogLevel
-#include "SerialRemote.h"
+#include "managers/HeaterModeManager.h" // For LogLevel
+#include "utilities/SerialRemote.h"
 
 // Constructor for FileSystemExplorer class
 FileSystemExplorer::FileSystemExplorer(AsyncWebServer &srv) : server(srv) {}

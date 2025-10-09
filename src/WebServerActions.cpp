@@ -1,8 +1,8 @@
-#include "WebServerActions.h"
-#include "Managers/WebServerManager.h"
-#include "Managers/StateManager.h"
-#include "Managers/NotepadManager.h"
-#include "SerialRemote.h"
+#include "utilities/WebServerActions.h"
+#include "managers/WebServerManager.h"
+#include "managers/StateManager.h"
+#include "managers/NotepadManager.h"
+#include "utilities/SerialRemote.h"
 namespace WebServerActions {
     void sendAck(AsyncWebSocketClient *client, const String &message)
     {

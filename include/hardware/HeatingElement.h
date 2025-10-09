@@ -4,7 +4,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_MAX31865.h>
-#include "ITemperatureSensor.h"
+#include "hardware/ITemperatureSensor.h"
 
 /**
  * @brief Controls a heating element with temperature monitoring and safety features

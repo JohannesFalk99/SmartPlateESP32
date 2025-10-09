@@ -5,13 +5,13 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
-#include "WebServerManager.h"
-#include "NotepadManager.h"
-#include "Explorer.h"
+#include "managers/WebServerManager.h"
+#include "managers/NotepadManager.h"
+#include "utilities/FileSystemExplorer.h"
 #include "config/Config.h"
-#include "WebServerActions.h"
-#include "SerialRemote.h"
-#include "StateManager.h"
+#include "utilities/WebServerActions.h"
+#include "utilities/SerialRemote.h"
+#include "managers/StateManager.h"
 // Define the static server members
 AsyncWebServer WebServerManager::server(SERVER_PORT);
 AsyncWebSocket WebServerManager::ws(WEBSOCKET_PATH);

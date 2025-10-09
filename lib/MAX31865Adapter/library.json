@@ -1,0 +1,19 @@
+{
+    "name": "MAX31865Adapter",
+    "version": "1.0.0",
+    "description": "Adapter class for MAX31865 RTD temperature sensor implementing ITemperatureSensor interface",
+    "keywords": ["MAX31865", "temperature", "sensor", "RTD", "PT100"],
+    "authors": [
+        {
+            "name": "SmartPlate Team"
+        }
+    ],
+    "dependencies": [
+        {
+            "name": "Adafruit MAX31865 library",
+            "version": "*"
+        }
+    ],
+    "frameworks": "arduino",
+    "platforms": "espressif32"
+}
