@@ -1,46 +1,44 @@
+# Libraries Directory
 
-This directory is intended for project specific (private) libraries.
+This directory contains project-specific hardware drivers and reusable libraries.
 PlatformIO will compile them to static libraries and link into the executable file.
 
-The source code of each library should be placed in a separate directory
-("lib/your_library_name/[Code]").
+## Current Libraries
 
-For example, see the structure of the following example libraries `Foo` and `Bar`:
+### MAX31865Adapter/
+Adapter implementation for the Adafruit MAX31865 RTD sensor board.
 
-|--lib
-|  |
-|  |--Bar
-|  |  |--docs
-|  |  |--examples
-|  |  |--src
-|  |     |- Bar.c
-|  |     |- Bar.h
-|  |  |- library.json (optional. for custom build options, etc) https://docs.platformio.org/page/librarymanager/config.html
-|  |
-|  |--Foo
-|  |  |- Foo.c
-|  |  |- Foo.h
-|  |
-|  |- README --> THIS FILE
-|
-|- platformio.ini
-|--src
-   |- main.c
+**Purpose**: Implements the `ITemperatureSensor` interface for the MAX31865 PT100 
+RTD temperature sensor, enabling dependency injection and testability in the 
+heating element controller.
 
-Example contents of `src/main.c` using Foo and Bar:
-```
-#include <Foo.h>
-#include <Bar.h>
+**Key Features**:
+- PT100 3-wire mode configuration
+- Fault detection and clearing
+- Calibrated temperature readings using reference resistor
 
-int main (void)
-{
-  ...
-}
+**Usage**:
+```cpp
+#include <MAX31865Adapter.h>
 
+MAX31865Adapter sensor(CS_PIN);
+sensor.begin();
+float temp = sensor.readTemperature();
 ```
 
-The PlatformIO Library Dependency Finder will find automatically dependent
-libraries by scanning project source files.
+**Dependencies**: 
+- Adafruit_MAX31865 library (managed via platformio.ini)
 
-More information about PlatformIO Library Dependency Finder
+## Adding New Libraries
+
+Place each library in its own subdirectory with:
+- Header files (`.h`)
+- Implementation files (`.cpp`, if needed)
+- `library.json` (optional, for metadata and dependencies)
+
+PlatformIO's Library Dependency Finder will automatically discover and 
+link libraries referenced in your source files.
+
+**More Information**:
 - https://docs.platformio.org/page/librarymanager/ldf.html
+- https://docs.platformio.org/page/librarymanager/config.html

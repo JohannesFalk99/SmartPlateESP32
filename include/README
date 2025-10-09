@@ -1,37 +1,44 @@
+# Include Directory Structure
 
-This directory is intended for project header files.
+This directory contains all project header files, organized by responsibility:
 
-A header file is a file containing C declarations and macro definitions
-to be shared between several project source files. You request the use of a
-header file in your project source file (C, C++, etc) located in `src` folder
-by including it, with the C preprocessing directive `#include'.
+## Directory Organization
 
-```src/main.c
+### config/
+System-wide configuration constants and settings
+- `Config.h` - WiFi credentials, server settings, hardware pins, thresholds
 
-#include "header.h"
+### hardware/
+Hardware abstraction and device drivers
+- `ITemperatureSensor.h` - Temperature sensor interface
+- `HeatingElement.h` - Heating element controller with safety features
 
-int main (void)
-{
- ...
-}
+### managers/
+High-level business logic and system management
+- `HeaterModeManager.h` - Operating mode management (OFF, RAMP, HOLD, TIMER)
+- `NotepadManager.h` - Experiment notes persistence
+- `StateManager.h` - Global system state management
+- `WebServerManager.h` - Web server and WebSocket handling
+
+### utilities/
+Helper utilities and support functionality
+- `FileSystemExplorer.h` - LittleFS file system web interface
+- `SerialRemote.h` - TCP-based remote serial logging
+- `WebServerActions.h` - WebSocket message handlers
+
+## Include Conventions
+
+Headers in subdirectories should be included with their relative path:
+```cpp
+#include "config/Config.h"
+#include "hardware/HeatingElement.h"
+#include "managers/WebServerManager.h"
+#include "utilities/SerialRemote.h"
 ```
 
-Including a header file produces the same results as copying the header file
-into each source file that needs it. Such copying would be time-consuming
-and error-prone. With a header file, the related declarations appear
-in only one place. If they need to be changed, they can be changed in one
-place, and programs that include the header file will automatically use the
-new version when next recompiled. The header file eliminates the labor of
-finding and changing all the copies as well as the risk that a failure to
-find one copy will result in inconsistencies within a program.
+Libraries in the `lib/` directory use angle brackets:
+```cpp
+#include <MAX31865Adapter.h>
+```
 
-In C, the convention is to give header files names that end with `.h'.
-
-Read more about using header files in official GCC documentation:
-
-* Include Syntax
-* Include Operation
-* Once-Only Headers
-* Computed Includes
-
-https://gcc.gnu.org/onlinedocs/cpp/Header-Files.html
+This structure follows PlatformIO best practices for maintainability and scalability.
