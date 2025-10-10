@@ -42,8 +42,12 @@ void temperatureChanged(float newTemp);
  * Logs the temperature change and adds entry to history
  */
 void temperatureChanged(float newTemp) {
+<<<<<<< HEAD
     // Use a simple char array instead of std::string
     char buffer[64];
+=======
+    char buffer[50];
+>>>>>>> 5898eae90dfd945b698ff859da21651e6073d2fe
     std::snprintf(buffer, sizeof(buffer), "[Temperature] Changed to %.2f°C", newTemp);
     logMessage(LogLevel::INFO, buffer);
     WebServerManager::instance()->addHistoryEntry(newTemp);
@@ -119,10 +123,11 @@ void setup() {
     heater.begin();
     setupWiFi();
     setupOTA();
+    // Create mutex before setting up web server
+    stateMutex = xSemaphoreCreateMutex();
     setupWebServer();
     state.mode = Modes::OFF;
     logMessagef(LogLevel::INFO, "[System] Setup complete!");
-    stateMutex = xSemaphoreCreateMutex();
     xTaskCreatePinnedToCore(heaterTask, "HeaterTask", 4096, NULL, 1, &heaterTaskHandle, 1);
     xTaskCreatePinnedToCore(webTask, "WebTask", 4096, NULL, 1, &webTaskHandle, 1);
     xTaskCreatePinnedToCore(stateTask, "StateTask", 4096, NULL, 1, &stateTaskHandle, 1);
@@ -214,6 +219,7 @@ void setupWebServer() {
     serialServer.begin(23);
     serialServer.setNoDelay(true);
     Serial.printf("[SerialServer] Started on port %d\n", SERIAL_TCP_PORT);
+    WebServerManager::instance()->setStateMutex(stateMutex);
     WebServerManager::instance()->attachModeManager(&modeManager);
     explorer.begin();
     Serial.println("[FileSystem] Explorer initialized");
