@@ -103,6 +103,14 @@ The project uses PlatformIO's automatic library discovery. Headers in `lib/` are
 5. **Build Efficiency**: PlatformIO's LDF optimizes compilation and linking
 6. **Standards Compliance**: Follows PlatformIO and C++ project conventions
 
+## Thread Safety
+
+The system uses FreeRTOS tasks for concurrent operation. Thread safety is ensured through mutex protection of shared state. See [THREAD_SAFETY.md](THREAD_SAFETY.md) for detailed documentation on:
+- Lock hierarchy and rules
+- Protected resources and operations
+- Stress testing recommendations
+- Debugging guidelines
+
 ## Migration Notes
 
 Previous structure had:
