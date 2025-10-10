@@ -12,6 +12,7 @@
 #include "utilities/WebServerActions.h"
 #include "utilities/SerialRemote.h"
 #include "managers/StateManager.h"
+#include <array>
 // Define the static server members
 AsyncWebServer WebServerManager::server(SERVER_PORT);
 AsyncWebSocket WebServerManager::ws(WEBSOCKET_PATH);

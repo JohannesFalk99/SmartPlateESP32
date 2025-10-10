@@ -42,9 +42,10 @@ void temperatureChanged(float newTemp);
  * Logs the temperature change and adds entry to history
  */
 void temperatureChanged(float newTemp) {
-    std::string buffer(50, '\0');
-    std::snprintf(buffer.data(), buffer.size(), "[Temperature] Changed to %.2f°C", newTemp);
-    logMessage(LogLevel::INFO, buffer.c_str());
+    // Use a simple char array instead of std::string
+    char buffer[64];
+    std::snprintf(buffer, sizeof(buffer), "[Temperature] Changed to %.2f°C", newTemp);
+    logMessage(LogLevel::INFO, buffer);
     WebServerManager::instance()->addHistoryEntry(newTemp);
 }
 
