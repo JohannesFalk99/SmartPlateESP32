@@ -12,6 +12,7 @@
 #include "utilities/WebServerActions.h"
 #include "utilities/SerialRemote.h"
 #include "managers/StateManager.h"
+#include <array>
 // Define the static server members
 AsyncWebServer WebServerManager::server(SERVER_PORT);
 AsyncWebSocket WebServerManager::ws(WEBSOCKET_PATH);
@@ -44,6 +45,12 @@ const WebServerManager::ActionMapping WebServerManager::actionMap[] = {
     {"notepadSave", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data)
      { WebServerActions::handleNotepadSave(mgr, client, data); }},
     {"getConfig", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data) {
+        // Acquire mutex for thread-safe state access
+        bool haveLock = false;
+        if (mgr->stateMutex && xSemaphoreTake(mgr->stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            haveLock = true;
+        }
+        
         StaticJsonDocument<512> configDoc;
         configDoc["tempSetpoint"] = state.tempSetpoint;
         configDoc["rpmSetpoint"] = state.rpmSetpoint;
@@ -52,6 +59,12 @@ const WebServerManager::ActionMapping WebServerManager::actionMap[] = {
         configDoc["alertTimerThreshold"] = state.alertTimerThreshold;
         String configJson;
         serializeJson(configDoc, configJson);
+        
+        // Release mutex before network operation
+        if (haveLock) {
+            xSemaphoreGive(mgr->stateMutex);
+        }
+        
         client->text(configJson);
     }},
     {"resetSystem", [](WebServerManager *mgr, AsyncWebSocketClient *client, JsonVariant data) {
@@ -65,7 +78,19 @@ const WebServerManager::ActionMapping WebServerManager::actionMap[] = {
                 float temperature = data["temperature"];
                 int rpm = data["rpm"];
                 String mode = data["mode"].as<String>();
-                StateManager::updateState(temperature, rpm, mode, state.tempSetpoint, state.rpmSetpoint, state.duration, mgr->modeManager);
+                
+                // Acquire mutex to read setpoints
+                float tempSetpoint = 0;
+                int rpmSetpoint = 0;
+                int duration = 0;
+                if (mgr->stateMutex && xSemaphoreTake(mgr->stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    tempSetpoint = state.tempSetpoint;
+                    rpmSetpoint = state.rpmSetpoint;
+                    duration = state.duration;
+                    xSemaphoreGive(mgr->stateMutex);
+                }
+                
+                StateManager::updateState(temperature, rpm, mode, tempSetpoint, rpmSetpoint, duration, mgr->modeManager, mgr->stateMutex);
                 mgr->notifyClients();
             } else {
                 mgr->sendError(client, "Incomplete state data");
@@ -88,6 +113,12 @@ WebServerManager *WebServerManager::instance()
 {
     static WebServerManager inst;
     return &inst;
+}
+
+// Set state mutex for thread-safe access
+void WebServerManager::setStateMutex(SemaphoreHandle_t mutex)
+{
+    stateMutex = mutex;
 }
 
 // --- Helper methods for WebSocket communication ---
@@ -205,6 +236,12 @@ void WebServerManager::notifyClients()
     if (ws.count() == 0)
         return;
 
+    // Acquire mutex for thread-safe state access
+    bool haveLock = false;
+    if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        haveLock = true;
+    }
+
     DynamicJsonDocument doc(512);
     doc["type"] = "dataUpdate";
     JsonObject data = doc.createNestedObject("data");
@@ -221,10 +258,17 @@ void WebServerManager::notifyClients()
     data["running_time"] = (millis() - state.startTime) / 1000;
     String json;
     serializeJson(doc, json);
+    
+    // Release mutex before sending (network I/O should not be done while holding lock)
+    if (haveLock) {
+        xSemaphoreGive(stateMutex);
+        haveLock = false;
+    }
+    
     ws.textAll(json);
 
-    // Log the state after notifying clients
-    StateManager::logState();
+    // Log the state after notifying clients (with mutex protection)
+    StateManager::logState(stateMutex);
 }
 
 // WebSocket event handlers (static calls instance method)
@@ -340,7 +384,13 @@ void WebServerManager::handleModeHold(const JsonObject &params)
 {
     if (modeManager)
     {
-        modeManager->setHold(state.tempSetpoint);
+        // Acquire mutex for thread-safe state access
+        float tempSetpoint = 0;
+        if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            tempSetpoint = state.tempSetpoint;
+            xSemaphoreGive(stateMutex);
+        }
+        modeManager->setHold(tempSetpoint);
     }
 }
 
@@ -349,15 +399,30 @@ void WebServerManager::handleModeRamp(const JsonObject &params)
     if (!modeManager)
         return;
 
+    // Acquire mutex for thread-safe state access
+    float tempSetpoint = 0;
+    if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        tempSetpoint = state.tempSetpoint;
+        xSemaphoreGive(stateMutex);
+    }
+    
     float rampRate = params.containsKey("ramp_rate") ? params["ramp_rate"].as<float>() : 1.0f;
-    modeManager->setRamp(state.tempSetpoint, rampRate, 9999);
+    modeManager->setRamp(tempSetpoint, rampRate, 9999);
 }
 
 void WebServerManager::handleModeTimer(const JsonObject &params)
 {
     if (modeManager)
     {
-        modeManager->setTimer(state.duration, state.tempSetpoint);
+        // Acquire mutex for thread-safe state access
+        int duration = 0;
+        float tempSetpoint = 0;
+        if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            duration = state.duration;
+            tempSetpoint = state.tempSetpoint;
+            xSemaphoreGive(stateMutex);
+        }
+        modeManager->setTimer(duration, tempSetpoint);
     }
 }
 
@@ -373,10 +438,18 @@ void WebServerManager::handleControlUpdate(AsyncWebSocketClient *client, JsonVar
     JsonObject obj = data.as<JsonObject>();
     bool stateChanged = false;
 
+    // Acquire mutex for thread-safe state access
+    bool haveLock = false;
+    if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        haveLock = true;
+    }
+
     float newTempSetpoint = state.tempSetpoint;
     int newRpmSetpoint = state.rpmSetpoint;
     String newMode = state.mode;
     int newDuration = state.duration;
+    float currentTemp = state.temperature;
+    int currentRpm = state.rpm;
 
     // Handle temperature setpoint
     if (obj.containsKey("temp_setpoint"))
@@ -406,10 +479,22 @@ void WebServerManager::handleControlUpdate(AsyncWebSocketClient *client, JsonVar
         stateChanged = true;
     }
 
+    // Release mutex before calling StateManager (which will re-acquire it)
+    if (haveLock) {
+        xSemaphoreGive(stateMutex);
+        haveLock = false;
+    }
+
     if (stateChanged)
     {
-        StateManager::updateState(state.temperature, state.rpm, newMode, newTempSetpoint, newRpmSetpoint, newDuration, modeManager);
-        state.startTime = millis();
+        StateManager::updateState(currentTemp, currentRpm, newMode, newTempSetpoint, newRpmSetpoint, newDuration, modeManager, stateMutex);
+        
+        // Re-acquire mutex to update startTime
+        if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            state.startTime = millis();
+            xSemaphoreGive(stateMutex);
+        }
+        
         notifyClients();
     }
     sendAck(client, "Update received");
@@ -418,14 +503,31 @@ void WebServerManager::handleControlUpdate(AsyncWebSocketClient *client, JsonVar
 // Add a new entry to the history circular buffer
 void WebServerManager::addHistoryEntry(float temperature)
 {
+    // Acquire mutex for thread-safe history access
+    bool haveLock = false;
+    if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        haveLock = true;
+    }
+    
     history[historyIndex].temperature = temperature;
     history[historyIndex].timestamp = millis(); // Store absolute time reference (milliseconds since boot)
     historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+    
+    // Release mutex
+    if (haveLock) {
+        xSemaphoreGive(stateMutex);
+    }
 }
 
 // Handles getHistory action
 void WebServerManager::handleGetHistory(AsyncWebSocketClient *client, JsonVariant)
 {
+    // Acquire mutex for thread-safe history access
+    bool haveLock = false;
+    if (stateMutex && xSemaphoreTake(stateMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        haveLock = true;
+    }
+
     StaticJsonDocument<2048> histDoc;
     JsonArray arr = histDoc.createNestedArray("data");
     bool hasEntries = false;
@@ -442,6 +544,11 @@ void WebServerManager::handleGetHistory(AsyncWebSocketClient *client, JsonVarian
         entry["time"] = history[idx].timestamp; // Send absolute timestamp (millis)
         entry["temperature"] = history[idx].temperature;
         hasEntries = true;
+    }
+
+    // Release mutex before network operations
+    if (haveLock) {
+        xSemaphoreGive(stateMutex);
     }
 
     if (!hasEntries)

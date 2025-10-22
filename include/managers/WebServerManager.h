@@ -80,6 +80,15 @@ public:
     static WebServerManager *instance();
 
     /**
+     * @brief Set the state mutex for thread-safe access
+     * @param mutex FreeRTOS mutex handle for protecting shared state
+     * 
+     * THREAD SAFETY: This must be called before any multi-threaded access.
+     * All state modifications will be protected by this mutex.
+     */
+    void setStateMutex(SemaphoreHandle_t mutex);
+
+    /**
      * @brief Get reference to the web server
      * @return AsyncWebServer& Reference to the AsyncWebServer instance
      */
@@ -155,6 +164,7 @@ private:
     static AsyncWebSocket ws;
 
     HeaterModeManager *modeManager = nullptr;
+    SemaphoreHandle_t stateMutex = nullptr;  ///< Mutex for protecting shared state access
 
     /**
      * @brief Send acknowledgment message to WebSocket client
