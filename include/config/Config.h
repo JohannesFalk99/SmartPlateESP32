@@ -40,9 +40,13 @@ namespace Modes {
 constexpr float DEFAULT_RAMP_RATE = 1.0f;   ///< Default temperature ramp rate in degrees/second
 
 // Hardware Configuration
+constexpr int CS_PIN = 5;                   ///< GPIO pin for MAX31865 chip select (SPI)
 constexpr int RELAY_PIN = 5;                ///< GPIO pin for relay control
 constexpr float MAX_TEMP_LIMIT = 70.0f;     ///< Maximum safe temperature in degrees Celsius
 constexpr int TEMP_FILTER_SIZE = 5;         ///< Size of temperature filter buffer
+
+// Network Configuration
+constexpr char OTA_HOSTNAME[] = "ESP32-SmartPlate";  ///< OTA hostname
 
 // System Configuration
 constexpr unsigned long UPDATE_INTERVAL_MS = 500;   ///< System state update interval in milliseconds

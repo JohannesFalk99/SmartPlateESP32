@@ -35,9 +35,20 @@ SmartPlateESP32/
 │       └── WebServerActions.h    # WebSocket message handlers
 │
 ├── lib/                          # Project-specific libraries
-│   └── MAX31865Adapter/          # Hardware driver library
-│       ├── MAX31865Adapter.h     # PT100 RTD sensor adapter
-│       └── library.json          # Library metadata
+│   ├── MAX31865Adapter/          # Hardware driver library
+│   │   ├── MAX31865Adapter.h     # PT100 RTD sensor adapter
+│   │   └── library.json          # Library metadata
+│   ├── NetworkManager/           # Network abstraction library
+│   │   ├── INetworkManager.h     # Network manager interface
+│   │   ├── ArduinoNetworkManager.h  # Arduino WiFi/OTA implementation
+│   │   ├── ArduinoNetworkManager.cpp
+│   │   ├── library.json
+│   │   └── README.md
+│   └── TaskManager/              # FreeRTOS task management
+│       ├── TaskManager.h         # Task and mutex management
+│       ├── TaskManager.cpp
+│       ├── library.json
+│       └── README.md
 │
 ├── data/                         # Web interface files (HTML, CSS, JS)
 │   ├── index.html
@@ -63,6 +74,9 @@ SmartPlateESP32/
 - **hardware/**: Hardware abstraction and device drivers
 - **managers/**: Business logic and high-level system management
 - **utilities/**: Helper functions and support utilities
+- **lib/NetworkManager**: Network operations (WiFi, OTA) with framework abstraction
+- **lib/TaskManager**: FreeRTOS task and synchronization management
+- **lib/MAX31865Adapter**: Temperature sensor hardware driver
 
 ### 3. Include Path Conventions
 
